@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: course-platform
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/course_platform}
+    username: ${DB_USERNAME:course_platform}
+    password: ${DB_PASSWORD:course_platform_dev}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
