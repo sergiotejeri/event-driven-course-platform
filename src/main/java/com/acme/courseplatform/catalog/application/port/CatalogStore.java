@@ -4,6 +4,7 @@ import com.acme.courseplatform.catalog.application.model.CategoryView;
 import com.acme.courseplatform.catalog.application.model.CourseView;
 import com.acme.courseplatform.catalog.application.model.InstructorView;
 import com.acme.courseplatform.catalog.application.model.PageResult;
+import com.acme.courseplatform.shared.query.SortSpec;
 import java.util.UUID;
 
 public interface CatalogStore {
@@ -16,7 +17,7 @@ public interface CatalogStore {
 
   void deleteCategory(UUID id);
 
-  PageResult<CategoryView> listCategories(int page, int size);
+  PageResult<CategoryView> listCategories(int page, int size, SortSpec sort);
 
   InstructorView createInstructor(String name, String email, String biography);
 
@@ -24,12 +25,12 @@ public interface CatalogStore {
 
   InstructorView updateInstructor(UUID id, String name, String email, String biography);
 
-  PageResult<InstructorView> listInstructors(int page, int size);
+  PageResult<InstructorView> listInstructors(int page, int size, SortSpec sort);
 
   void deleteInstructor(UUID id);
 
   PageResult<CourseView> searchCourses(
-      String level, String title, Boolean available, int page, int size);
+      String level, String title, Boolean available, int page, int size, SortSpec sort);
 
   PageResult<CourseView> cursorCourses(int size);
 }

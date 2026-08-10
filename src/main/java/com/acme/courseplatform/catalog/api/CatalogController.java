@@ -58,8 +58,9 @@ public class CatalogController {
   @GetMapping("/categories")
   PageResult<CategoryView> categories(
       @RequestParam(defaultValue = "0") @Min(0) int page,
-      @RequestParam(defaultValue = "20") @Positive int size) {
-    return categories.list(page, size);
+      @RequestParam(defaultValue = "20") @Positive int size,
+      @RequestParam(required = false) String sort) {
+    return categories.list(page, size, sort);
   }
 
   @GetMapping("/categories/{id}")
@@ -88,8 +89,9 @@ public class CatalogController {
   @GetMapping("/instructors")
   PageResult<InstructorView> instructors(
       @RequestParam(defaultValue = "0") @Min(0) int page,
-      @RequestParam(defaultValue = "20") @Positive int size) {
-    return instructors.list(page, size);
+      @RequestParam(defaultValue = "20") @Positive int size,
+      @RequestParam(required = false) String sort) {
+    return instructors.list(page, size, sort);
   }
 
   @GetMapping("/instructors/{id}")
@@ -147,8 +149,9 @@ public class CatalogController {
       @RequestParam(required = false) String title,
       @RequestParam(required = false) Boolean available,
       @RequestParam(defaultValue = "0") @Min(0) int page,
-      @RequestParam(defaultValue = "20") @Positive int size) {
-    return search.search(level, title, available, page, size);
+      @RequestParam(defaultValue = "20") @Positive int size,
+      @RequestParam(required = false) String sort) {
+    return search.search(level, title, available, page, size, sort);
   }
 
   @GetMapping("/courses/search/cursor")

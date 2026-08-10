@@ -1,13 +1,11 @@
 package com.acme.courseplatform.catalog.infrastructure.persistence;
 
-import static org.springframework.http.HttpStatus.NOT_FOUND;
-
 import com.acme.courseplatform.catalog.application.model.CourseData;
 import com.acme.courseplatform.catalog.application.model.CourseView;
 import com.acme.courseplatform.catalog.application.port.CourseRepository;
+import com.acme.courseplatform.shared.api.ResourceNotFoundException;
 import java.util.UUID;
 import org.springframework.stereotype.Repository;
-import org.springframework.web.server.ResponseStatusException;
 
 @Repository
 public class CoursePersistenceAdapter implements CourseRepository {
@@ -55,7 +53,7 @@ public class CoursePersistenceAdapter implements CourseRepository {
   }
 
   private CourseEntity required(UUID id) {
-    return repository.findById(id).orElseThrow(() -> new ResponseStatusException(NOT_FOUND));
+    return repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Course", id));
   }
 
   private static CourseView view(CourseEntity course) {

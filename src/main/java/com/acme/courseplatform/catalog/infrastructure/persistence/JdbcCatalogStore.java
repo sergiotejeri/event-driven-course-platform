@@ -1,13 +1,13 @@
 package com.acme.courseplatform.catalog.infrastructure.persistence;
 
-import static org.springframework.http.HttpStatus.CONFLICT;
-import static org.springframework.http.HttpStatus.NOT_FOUND;
-
 import com.acme.courseplatform.catalog.application.model.CategoryView;
 import com.acme.courseplatform.catalog.application.model.CourseView;
 import com.acme.courseplatform.catalog.application.model.InstructorView;
 import com.acme.courseplatform.catalog.application.model.PageResult;
 import com.acme.courseplatform.catalog.application.port.CatalogStore;
+import com.acme.courseplatform.shared.api.ConflictException;
+import com.acme.courseplatform.shared.api.ResourceNotFoundException;
+import com.acme.courseplatform.shared.query.SortSpec;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -16,7 +16,6 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
-import org.springframework.web.server.ResponseStatusException;
 
 @Repository
 public class JdbcCatalogStore implements CatalogStore {
@@ -61,7 +60,7 @@ public class JdbcCatalogStore implements CatalogStore {
             description,
             id)
         == 0) {
-      throw new ResponseStatusException(NOT_FOUND);
+      throw new ResourceNotFoundException("Category", id);
     }
     return getCategory(id);
   }
@@ -69,15 +68,17 @@ public class JdbcCatalogStore implements CatalogStore {
   @Override
   public void deleteCategory(UUID id) {
     if (jdbc.update("delete from categories where id = ?", id) == 0) {
-      throw new ResponseStatusException(NOT_FOUND);
+      throw new ResourceNotFoundException("Category", id);
     }
   }
 
   @Override
-  public PageResult<CategoryView> listCategories(int page, int size) {
+  public PageResult<CategoryView> listCategories(int page, int size, SortSpec sort) {
     List<CategoryView> content =
         jdbc.query(
-            "select id, name, description, status from categories order by created_at, id limit ? offset ?",
+            "select id, name, description, status from categories order by "
+                + sort.sqlOrder()
+                + " limit ? offset ?",
             (result, row) ->
                 new CategoryView(
                     result.getObject("id", UUID.class),
@@ -142,10 +143,12 @@ public class JdbcCatalogStore implements CatalogStore {
   }
 
   @Override
-  public PageResult<InstructorView> listInstructors(int page, int size) {
+  public PageResult<InstructorView> listInstructors(int page, int size, SortSpec sort) {
     List<InstructorView> content =
         jdbc.query(
-            "select id, name, email, biography from instructors order by created_at, id limit ? offset ?",
+            "select id, name, email, biography from instructors order by "
+                + sort.sqlOrder()
+                + " limit ? offset ?",
             (result, row) ->
                 new InstructorView(
                     result.getObject("id", UUID.class),
@@ -162,14 +165,14 @@ public class JdbcCatalogStore implements CatalogStore {
     Long courses =
         jdbc.queryForObject("select count(*) from courses where instructor_id = ?", Long.class, id);
     if (courses != null && courses > 0) {
-      throw new ResponseStatusException(CONFLICT, "Instructor has courses");
+      throw new ConflictException("INSTRUCTOR_IN_USE", "Instructor has courses");
     }
     jdbc.update("delete from instructors where id = ?", id);
   }
 
   @Override
   public PageResult<CourseView> searchCourses(
-      String level, String title, Boolean available, int page, int size) {
+      String level, String title, Boolean available, int page, int size, SortSpec sort) {
     StringBuilder where = new StringBuilder(" where status = 'PUBLISHED'");
     List<Object> parameters = new ArrayList<>();
     if (level != null) {
@@ -190,7 +193,7 @@ public class JdbcCatalogStore implements CatalogStore {
     parameters.add(page * size);
     List<CourseView> content =
         jdbc.query(
-            "select * from courses" + where + " order by created_at, id limit ? offset ?",
+            "select * from courses" + where + " order by " + sort.sqlOrder() + " limit ? offset ?",
             this::course,
             parameters.toArray());
     return new PageResult<>(content, total == null ? 0 : total, page, size);
@@ -226,7 +229,7 @@ public class JdbcCatalogStore implements CatalogStore {
 
   private static <T> T required(List<T> values) {
     if (values.isEmpty()) {
-      throw new ResponseStatusException(NOT_FOUND);
+      throw new ResourceNotFoundException("Catalog resource", "unknown");
     }
     return values.getFirst();
   }

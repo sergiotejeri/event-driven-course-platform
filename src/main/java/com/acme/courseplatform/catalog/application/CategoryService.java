@@ -3,6 +3,9 @@ package com.acme.courseplatform.catalog.application;
 import com.acme.courseplatform.catalog.application.model.CategoryView;
 import com.acme.courseplatform.catalog.application.model.PageResult;
 import com.acme.courseplatform.catalog.application.port.CatalogStore;
+import com.acme.courseplatform.shared.query.SortDirection;
+import com.acme.courseplatform.shared.query.SortSpec;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,14 +14,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class CategoryService {
 
   private final CatalogStore store;
+  private final CatalogConflictTranslator conflicts;
 
-  public CategoryService(CatalogStore store) {
+  public CategoryService(CatalogStore store, CatalogConflictTranslator conflicts) {
     this.store = store;
+    this.conflicts = conflicts;
   }
 
   @Transactional
   public CategoryView create(String name, String description) {
-    return store.createCategory(name, description);
+    return conflicts.categoryName(() -> store.createCategory(name, description));
   }
 
   @Transactional(readOnly = true)
@@ -37,7 +42,14 @@ public class CategoryService {
   }
 
   @Transactional(readOnly = true)
-  public PageResult<CategoryView> list(int page, int size) {
-    return store.listCategories(page, size);
+  public PageResult<CategoryView> list(int page, int size, String sort) {
+    SortSpec spec =
+        SortSpec.parse(
+            sort,
+            Map.of("createdAt", "created_at", "name", "name"),
+            "createdAt",
+            SortDirection.DESC,
+            "id");
+    return store.listCategories(page, size, spec);
   }
 }

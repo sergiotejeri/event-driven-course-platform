@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.acme.courseplatform.CoursePlatformApplication;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -167,6 +168,66 @@ class CatalogControllerTest {
 
     mvc.perform(delete("/api/v1/instructors/{id}", instructorId)).andExpect(status().isNoContent());
     mvc.perform(delete("/api/v1/categories/{id}", categoryId)).andExpect(status().isNoContent());
+  }
+
+  @Test
+  void reportsValidationAndMissingResourcesAsProblemDetails() throws Exception {
+    mvc.perform(
+            post("/api/v1/categories")
+                .contentType("application/json")
+                .content("{\"name\":\"\",\"description\":\"x\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"))
+        .andExpect(jsonPath("$.fieldErrors.name").exists());
+    mvc.perform(get("/api/v1/courses/00000000-0000-0000-0000-000000000099"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.errorCode").value("RESOURCE_NOT_FOUND"));
+    mvc.perform(get("/api/v1/categories").param("page", "0").param("size", "0"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+  }
+
+  @Test
+  void duplicateCategoryNameReturnsFunctionalConflict() throws Exception {
+    String name = "Duplicate category " + UUID.randomUUID();
+    String body = "{\"name\":\"%s\",\"description\":\"first\"}".formatted(name);
+    mvc.perform(post("/api/v1/categories").contentType("application/json").content(body))
+        .andExpect(status().isCreated());
+
+    mvc.perform(post("/api/v1/categories").contentType("application/json").content(body))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.errorCode").value("CATEGORY_NAME_CONFLICT"))
+        .andExpect(jsonPath("$.timestamp").isNotEmpty())
+        .andExpect(jsonPath("$.correlationId").isNotEmpty());
+  }
+
+  @Test
+  void duplicateInstructorEmailReturnsFunctionalConflict() throws Exception {
+    String email = "duplicate-instructor-" + UUID.randomUUID() + "@example.test";
+    String first = "{\"name\":\"Ada\",\"email\":\"%s\",\"biography\":\"first\"}".formatted(email);
+    String second =
+        "{\"name\":\"Grace\",\"email\":\"%s\",\"biography\":\"second\"}".formatted(email);
+    mvc.perform(post("/api/v1/instructors").contentType("application/json").content(first))
+        .andExpect(status().isCreated());
+
+    mvc.perform(post("/api/v1/instructors").contentType("application/json").content(second))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.errorCode").value("INSTRUCTOR_EMAIL_CONFLICT"))
+        .andExpect(jsonPath("$.timestamp").isNotEmpty())
+        .andExpect(jsonPath("$.correlationId").isNotEmpty());
+  }
+
+  @Test
+  void rejectsUnsupportedCatalogSort() throws Exception {
+    mvc.perform(get("/api/v1/categories").param("sort", "dropTable,asc"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+    mvc.perform(get("/api/v1/instructors").param("sort", "email,sideways"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+    mvc.perform(get("/api/v1/courses/search").param("sort", "unknown,desc"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
   }
 
   private static String value(String json, String field) {
