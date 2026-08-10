@@ -9,6 +9,7 @@ import com.acme.courseplatform.catalog.application.model.CourseData;
 import com.acme.courseplatform.catalog.application.model.CourseView;
 import com.acme.courseplatform.catalog.application.model.InstructorView;
 import com.acme.courseplatform.catalog.application.model.PageResult;
+import com.acme.courseplatform.identity.application.AuthorizationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
@@ -19,6 +20,7 @@ import java.math.BigDecimal;
 import java.net.URI;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,16 +39,19 @@ public class CatalogController {
   private final InstructorService instructors;
   private final CourseService courses;
   private final CourseSearchService search;
+  private final AuthorizationService authorization;
 
   public CatalogController(
       CategoryService categories,
       InstructorService instructors,
       CourseService courses,
-      CourseSearchService search) {
+      CourseSearchService search,
+      AuthorizationService authorization) {
     this.categories = categories;
     this.instructors = instructors;
     this.courses = courses;
     this.search = search;
+    this.authorization = authorization;
   }
 
   @PostMapping("/categories")
@@ -112,7 +117,9 @@ public class CatalogController {
   }
 
   @PostMapping("/courses")
-  ResponseEntity<CourseView> createCourse(@Valid @RequestBody CourseRequest request) {
+  ResponseEntity<CourseView> createCourse(
+      @Valid @RequestBody CourseRequest request, Authentication authentication) {
+    authorization.requireCourseInstructorOrAdmin(authentication, request.instructorId());
     CourseView created = courses.create(request.data());
     return ResponseEntity.created(URI.create("/api/v1/courses/" + created.id())).body(created);
   }
@@ -123,22 +130,30 @@ public class CatalogController {
   }
 
   @PutMapping("/courses/{id}")
-  CourseView updateCourse(@PathVariable UUID id, @Valid @RequestBody CourseRequest request) {
+  CourseView updateCourse(
+      @PathVariable UUID id,
+      @Valid @RequestBody CourseRequest request,
+      Authentication authentication) {
+    authorization.requireCourseOwnerOrAdmin(authentication, id);
+    authorization.requireCourseInstructorOrAdmin(authentication, request.instructorId());
     return courses.update(id, request.data());
   }
 
   @PostMapping("/courses/{id}/publish")
-  CourseView publishCourse(@PathVariable UUID id) {
+  CourseView publishCourse(@PathVariable UUID id, Authentication authentication) {
+    authorization.requireCourseOwnerOrAdmin(authentication, id);
     return courses.publish(id);
   }
 
   @PostMapping("/courses/{id}/archive")
-  CourseView archiveCourse(@PathVariable UUID id) {
+  CourseView archiveCourse(@PathVariable UUID id, Authentication authentication) {
+    authorization.requireCourseOwnerOrAdmin(authentication, id);
     return courses.archive(id);
   }
 
   @DeleteMapping("/courses/{id}")
-  ResponseEntity<Void> deleteCourse(@PathVariable UUID id) {
+  ResponseEntity<Void> deleteCourse(@PathVariable UUID id, Authentication authentication) {
+    authorization.requireCourseOwnerOrAdmin(authentication, id);
     courses.delete(id);
     return ResponseEntity.noContent().build();
   }

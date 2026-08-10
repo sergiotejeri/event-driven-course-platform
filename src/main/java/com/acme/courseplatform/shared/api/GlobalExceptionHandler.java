@@ -1,5 +1,6 @@
 package com.acme.courseplatform.shared.api;
 
+import com.acme.courseplatform.identity.application.InvalidCredentialsException;
 import com.acme.courseplatform.shared.domain.InvalidTransitionException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -17,6 +18,13 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+  @ExceptionHandler(InvalidCredentialsException.class)
+  ResponseEntity<ProblemDetail> invalidCredentials(
+      InvalidCredentialsException exception, HttpServletRequest request) {
+    return response(
+        HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", exception.getMessage(), request, Map.of());
+  }
 
   @ExceptionHandler(ResourceNotFoundException.class)
   ResponseEntity<ProblemDetail> notFound(

@@ -14,3 +14,8 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+
+app:
+  security:
+    jwt-secret: ${JWT_SECRET:course-platform-development-secret-change-me}
+    token-ttl: 1h
