@@ -41,7 +41,7 @@ class MigrationIntegrationTest {
         ResultSet result =
             statement.executeQuery("select count(*) from flyway_schema_history where success")) {
       result.next();
-      assertThat(result.getInt(1)).isEqualTo(2);
+      assertThat(result.getInt(1)).isEqualTo(4);
     }
   }
 

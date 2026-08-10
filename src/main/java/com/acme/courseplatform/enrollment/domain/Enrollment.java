@@ -16,7 +16,7 @@ public class Enrollment {
     this.id = id;
     this.studentId = studentId;
     this.courseId = courseId;
-    this.status = EnrollmentStatus.PENDING;
+    this.status = EnrollmentStatus.PENDING_PAYMENT;
   }
 
   public static Enrollment pending(UUID id, UUID studentId, UUID courseId) {
@@ -24,8 +24,8 @@ public class Enrollment {
   }
 
   public void activate() {
-    if (status != EnrollmentStatus.PENDING) {
-      throw new InvalidTransitionException("Enrollment can only be activated from PENDING");
+    if (status != EnrollmentStatus.PENDING_PAYMENT) {
+      throw new InvalidTransitionException("Enrollment can only be activated from PENDING_PAYMENT");
     }
     status = EnrollmentStatus.ACTIVE;
   }
@@ -34,8 +34,8 @@ public class Enrollment {
     if (status == EnrollmentStatus.CANCELLED) {
       return false;
     }
-    if (status != EnrollmentStatus.PENDING) {
-      throw new InvalidTransitionException("Enrollment can only be cancelled from PENDING");
+    if (status != EnrollmentStatus.PENDING_PAYMENT) {
+      throw new InvalidTransitionException("Enrollment can only be cancelled from PENDING_PAYMENT");
     }
     status = EnrollmentStatus.CANCELLED;
     return true;
