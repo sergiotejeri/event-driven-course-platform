@@ -43,6 +43,22 @@ class MigrationIntegrationTest {
       result.next();
       assertThat(result.getInt(1)).isEqualTo(4);
     }
+    try (Connection connection = connection();
+        Statement statement = connection.createStatement();
+        ResultSet result =
+            statement.executeQuery(
+                """
+                select
+                  (select count(*) from pg_constraint
+                   where conname='payments_idempotency_key_unique') constraints,
+                  (select count(*) from pg_indexes
+                   where schemaname='public' and tablename='payments'
+                     and indexname='payments_idempotency_key_idx') indexes
+                """)) {
+      result.next();
+      assertThat(result.getInt("constraints")).isZero();
+      assertThat(result.getInt("indexes")).isEqualTo(1);
+    }
   }
 
   @Test

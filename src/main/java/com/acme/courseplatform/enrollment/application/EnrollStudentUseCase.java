@@ -8,11 +8,15 @@ import com.acme.courseplatform.enrollment.application.port.EnrollmentRepository;
 import com.acme.courseplatform.enrollment.application.port.PaymentRepository;
 import com.acme.courseplatform.enrollment.application.port.StudentPort;
 import com.acme.courseplatform.identity.application.CurrentActor;
+import com.acme.courseplatform.messaging.application.port.OutboxStore;
+import com.acme.courseplatform.messaging.domain.EventEnvelope;
+import com.acme.courseplatform.messaging.domain.Events.EnrollmentCreatedV1;
 import com.acme.courseplatform.shared.api.ConflictException;
 import com.acme.courseplatform.shared.api.ResourceNotFoundException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.HexFormat;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -26,18 +30,21 @@ public class EnrollStudentUseCase {
   private final EnrollmentRepository enrollments;
   private final PaymentRepository payments;
   private final EnrollmentIdempotencyPort idempotency;
+  private final OutboxStore outbox;
 
   public EnrollStudentUseCase(
       CourseSeatPort seats,
       StudentPort students,
       EnrollmentRepository enrollments,
       PaymentRepository payments,
-      EnrollmentIdempotencyPort idempotency) {
+      EnrollmentIdempotencyPort idempotency,
+      OutboxStore outbox) {
     this.seats = seats;
     this.students = students;
     this.enrollments = enrollments;
     this.payments = payments;
     this.idempotency = idempotency;
+    this.outbox = outbox;
   }
 
   @Transactional
@@ -70,6 +77,18 @@ public class EnrollStudentUseCase {
     UUID paymentId = UUID.randomUUID();
     enrollments.savePendingPayment(enrollmentId, studentId, courseId);
     payments.savePending(paymentId, enrollmentId, course.price(), course.currency(), key);
+    UUID eventId = UUID.randomUUID();
+    outbox.append(
+        new EventEnvelope<>(
+            eventId,
+            "EnrollmentCreatedV1",
+            1,
+            "Enrollment",
+            enrollmentId,
+            Instant.now(),
+            eventId,
+            null,
+            new EnrollmentCreatedV1(enrollmentId, studentId, courseId)));
     EnrollmentResult result = new EnrollmentResult(enrollmentId, paymentId, false);
     idempotency.complete(actor.userId(), key, result);
     return result;

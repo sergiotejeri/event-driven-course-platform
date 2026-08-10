@@ -14,8 +14,18 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:course_platform}
+    password: ${RABBITMQ_PASSWORD:course_platform_dev}
+    publisher-confirm-type: CORRELATED
+    publisher-returns: true
 
 app:
+  outbox:
+    scheduling-enabled: ${OUTBOX_SCHEDULING_ENABLED:false}
+    fixed-delay: ${OUTBOX_FIXED_DELAY:PT1S}
   security:
     jwt-secret: ${JWT_SECRET:course-platform-development-secret-change-me}
     token-ttl: 1h
