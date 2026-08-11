@@ -2,6 +2,7 @@ package com.acme.courseplatform.shared.api;
 
 import com.acme.courseplatform.identity.application.InvalidCredentialsException;
 import com.acme.courseplatform.shared.domain.InvalidTransitionException;
+import com.acme.courseplatform.shared.domain.ProgressRegressionException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.time.Instant;
@@ -77,6 +78,13 @@ public class GlobalExceptionHandler {
       InvalidTransitionException exception, HttpServletRequest request) {
     return response(
         HttpStatus.CONFLICT, "INVALID_STATE_TRANSITION", exception.getMessage(), request, Map.of());
+  }
+
+  @ExceptionHandler(ProgressRegressionException.class)
+  ResponseEntity<ProblemDetail> progressRegression(
+      ProgressRegressionException exception, HttpServletRequest request) {
+    return response(
+        HttpStatus.CONFLICT, "PROGRESS_REGRESSION", exception.getMessage(), request, Map.of());
   }
 
   @ExceptionHandler(DataIntegrityViolationException.class)

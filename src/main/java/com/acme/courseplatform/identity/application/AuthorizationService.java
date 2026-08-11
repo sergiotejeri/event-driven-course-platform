@@ -64,6 +64,21 @@ public class AuthorizationService {
     }
   }
 
+  public void requireEnrollmentOwnerOrAdmin(CurrentActor actor, UUID enrollmentId) {
+    if (actor.hasRole("ADMIN")) {
+      return;
+    }
+    Boolean ownsEnrollment =
+        jdbc.queryForObject(
+            "select exists(select 1 from enrollments e join students s on s.id=e.student_id where e.id=? and s.user_id=?)",
+            Boolean.class,
+            enrollmentId,
+            actor.userId());
+    if (!Boolean.TRUE.equals(ownsEnrollment)) {
+      throw new AccessDeniedException("The resource belongs to another user");
+    }
+  }
+
   public CurrentActor actor(Authentication authentication) {
     if (authentication == null || !(authentication.getPrincipal() instanceof Jwt jwt)) {
       throw new AccessDeniedException("Authenticated actor required");
