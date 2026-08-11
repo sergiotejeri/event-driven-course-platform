@@ -1,5 +1,7 @@
-package com.acme.courseplatform.enrollment.infrastructure.persistence;
+package com.acme.courseplatform.payment.infrastructure.persistence;
 
+import com.acme.courseplatform.payment.application.port.PaymentRepository.PaymentData;
+import com.acme.courseplatform.payment.domain.PaymentStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -45,7 +47,7 @@ public class PaymentJpaEntity {
     this.enrollmentId = enrollmentId;
     this.amount = amount;
     this.currency = currency;
-    this.status = "PENDING";
+    this.status = PaymentStatus.PENDING.name();
     this.idempotencyKey = idempotencyKey;
     this.createdAt = Instant.now();
     this.updatedAt = createdAt;
@@ -54,5 +56,10 @@ public class PaymentJpaEntity {
   public static PaymentJpaEntity pending(
       UUID id, UUID enrollmentId, BigDecimal amount, String currency, String idempotencyKey) {
     return new PaymentJpaEntity(id, enrollmentId, amount, currency, idempotencyKey);
+  }
+
+  PaymentData toData() {
+    return new PaymentData(
+        id, enrollmentId, amount, currency.strip(), PaymentStatus.valueOf(status));
   }
 }

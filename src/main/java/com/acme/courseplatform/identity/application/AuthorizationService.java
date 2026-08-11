@@ -49,6 +49,21 @@ public class AuthorizationService {
     }
   }
 
+  public void requirePaymentOwnerOrAdmin(CurrentActor actor, UUID paymentId) {
+    if (actor.hasRole("ADMIN")) {
+      return;
+    }
+    Boolean ownsPayment =
+        jdbc.queryForObject(
+            "select exists(select 1 from payments p join enrollments e on e.id = p.enrollment_id join students s on s.id = e.student_id where p.id = ? and s.user_id = ?)",
+            Boolean.class,
+            paymentId,
+            actor.userId());
+    if (!Boolean.TRUE.equals(ownsPayment)) {
+      throw new AccessDeniedException("The resource belongs to another user");
+    }
+  }
+
   public CurrentActor actor(Authentication authentication) {
     if (authentication == null || !(authentication.getPrincipal() instanceof Jwt jwt)) {
       throw new AccessDeniedException("Authenticated actor required");

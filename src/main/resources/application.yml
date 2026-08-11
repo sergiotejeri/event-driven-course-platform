@@ -23,6 +23,8 @@ spring:
     publisher-returns: true
 
 app:
+  payment:
+    enrollment-created-outcome: ${PAYMENT_ENROLLMENT_CREATED_OUTCOME:CONFIRM}
   outbox:
     scheduling-enabled: ${OUTBOX_SCHEDULING_ENABLED:false}
     fixed-delay: ${OUTBOX_FIXED_DELAY:PT1S}
