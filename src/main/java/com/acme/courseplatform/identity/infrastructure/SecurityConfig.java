@@ -35,6 +35,8 @@ public class SecurityConfig {
                 requests
                     .requestMatchers("/api/v1/auth/login")
                     .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/certificates/verify/**")
+                    .permitAll()
                     .requestMatchers(
                         HttpMethod.GET,
                         "/api/v1/categories/**",
