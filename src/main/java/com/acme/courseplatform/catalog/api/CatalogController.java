@@ -10,6 +10,8 @@ import com.acme.courseplatform.catalog.application.model.CourseView;
 import com.acme.courseplatform.catalog.application.model.InstructorView;
 import com.acme.courseplatform.catalog.application.model.PageResult;
 import com.acme.courseplatform.identity.application.AuthorizationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
@@ -55,6 +57,7 @@ public class CatalogController {
   }
 
   @PostMapping("/categories")
+  @Operation(summary = "Crear una categoría", security = @SecurityRequirement(name = "bearerAuth"))
   ResponseEntity<CategoryView> createCategory(@Valid @RequestBody CategoryRequest request) {
     CategoryView created = categories.create(request.name(), request.description());
     return ResponseEntity.created(URI.create("/api/v1/categories/" + created.id())).body(created);
@@ -74,17 +77,24 @@ public class CatalogController {
   }
 
   @PutMapping("/categories/{id}")
+  @Operation(
+      summary = "Actualizar una categoría",
+      security = @SecurityRequirement(name = "bearerAuth"))
   CategoryView updateCategory(@PathVariable UUID id, @Valid @RequestBody CategoryRequest request) {
     return categories.update(id, request.name(), request.description());
   }
 
   @DeleteMapping("/categories/{id}")
+  @Operation(
+      summary = "Eliminar una categoría",
+      security = @SecurityRequirement(name = "bearerAuth"))
   ResponseEntity<Void> deleteCategory(@PathVariable UUID id) {
     categories.delete(id);
     return ResponseEntity.noContent().build();
   }
 
   @PostMapping("/instructors")
+  @Operation(summary = "Crear un instructor", security = @SecurityRequirement(name = "bearerAuth"))
   ResponseEntity<InstructorView> createInstructor(@Valid @RequestBody InstructorRequest request) {
     InstructorView created =
         instructors.create(request.name(), request.email(), request.biography());
@@ -105,18 +115,25 @@ public class CatalogController {
   }
 
   @PutMapping("/instructors/{id}")
+  @Operation(
+      summary = "Actualizar un instructor",
+      security = @SecurityRequirement(name = "bearerAuth"))
   InstructorView updateInstructor(
       @PathVariable UUID id, @Valid @RequestBody InstructorRequest request) {
     return instructors.update(id, request.name(), request.email(), request.biography());
   }
 
   @DeleteMapping("/instructors/{id}")
+  @Operation(
+      summary = "Eliminar un instructor",
+      security = @SecurityRequirement(name = "bearerAuth"))
   ResponseEntity<Void> deleteInstructor(@PathVariable UUID id) {
     instructors.delete(id);
     return ResponseEntity.noContent().build();
   }
 
   @PostMapping("/courses")
+  @Operation(summary = "Crear un curso", security = @SecurityRequirement(name = "bearerAuth"))
   ResponseEntity<CourseView> createCourse(
       @Valid @RequestBody CourseRequest request, Authentication authentication) {
     authorization.requireCourseInstructorOrAdmin(authentication, request.instructorId());
@@ -130,6 +147,7 @@ public class CatalogController {
   }
 
   @PutMapping("/courses/{id}")
+  @Operation(summary = "Actualizar un curso", security = @SecurityRequirement(name = "bearerAuth"))
   CourseView updateCourse(
       @PathVariable UUID id,
       @Valid @RequestBody CourseRequest request,
@@ -140,18 +158,21 @@ public class CatalogController {
   }
 
   @PostMapping("/courses/{id}/publish")
+  @Operation(summary = "Publicar un curso", security = @SecurityRequirement(name = "bearerAuth"))
   CourseView publishCourse(@PathVariable UUID id, Authentication authentication) {
     authorization.requireCourseOwnerOrAdmin(authentication, id);
     return courses.publish(id);
   }
 
   @PostMapping("/courses/{id}/archive")
+  @Operation(summary = "Archivar un curso", security = @SecurityRequirement(name = "bearerAuth"))
   CourseView archiveCourse(@PathVariable UUID id, Authentication authentication) {
     authorization.requireCourseOwnerOrAdmin(authentication, id);
     return courses.archive(id);
   }
 
   @DeleteMapping("/courses/{id}")
+  @Operation(summary = "Eliminar un curso", security = @SecurityRequirement(name = "bearerAuth"))
   ResponseEntity<Void> deleteCourse(@PathVariable UUID id, Authentication authentication) {
     authorization.requireCourseOwnerOrAdmin(authentication, id);
     courses.delete(id);

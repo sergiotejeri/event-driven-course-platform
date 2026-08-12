@@ -35,6 +35,8 @@ public class SecurityConfig {
                 requests
                     .requestMatchers("/api/v1/auth/login")
                     .permitAll()
+                    .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
+                    .permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/certificates/verify/**")
                     .permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/courses/*/students")

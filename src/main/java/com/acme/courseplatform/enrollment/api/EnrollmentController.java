@@ -9,6 +9,11 @@ import com.acme.courseplatform.enrollment.application.port.EnrollmentQueryStore.
 import com.acme.courseplatform.enrollment.application.port.EnrollmentQueryStore.StudentCourseView;
 import com.acme.courseplatform.enrollment.application.port.EnrollmentQueryStore.StudentEnrollmentView;
 import com.acme.courseplatform.identity.application.AuthorizationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
 import java.net.URI;
@@ -45,9 +50,24 @@ public class EnrollmentController {
   }
 
   @PostMapping("/courses/{courseId}/enrollments")
+  @Operation(
+      summary = "Enroll the authenticated student",
+      description = "Atomically reserves a seat and creates a pending payment",
+      security = @SecurityRequirement(name = "bearerAuth"))
+  @ApiResponses({
+    @ApiResponse(responseCode = "201", description = "Enrollment created"),
+    @ApiResponse(responseCode = "200", description = "Idempotent replay"),
+    @ApiResponse(responseCode = "400", description = "Invalid idempotency key"),
+    @ApiResponse(responseCode = "401", description = "Authentication required"),
+    @ApiResponse(responseCode = "403", description = "Student role required"),
+    @ApiResponse(responseCode = "404", description = "Student or course not found"),
+    @ApiResponse(responseCode = "409", description = "Course full, duplicate or key conflict")
+  })
   ResponseEntity<EnrollmentResponse> enroll(
       @PathVariable UUID courseId,
-      @RequestHeader("Idempotency-Key") String idempotencyKey,
+      @Parameter(description = "Unique key for safely retrying this request", required = true)
+          @RequestHeader("Idempotency-Key")
+          String idempotencyKey,
       Authentication authentication) {
     EnrollmentResult result =
         enroll.enroll(authorization.actor(authentication), courseId, idempotencyKey);
@@ -61,17 +81,31 @@ public class EnrollmentController {
   }
 
   @DeleteMapping("/enrollments/{id}")
+  @Operation(summary = "Cancel an enrollment", security = @SecurityRequirement(name = "bearerAuth"))
   CancelEnrollmentUseCase.CancellationResult cancel(
       @PathVariable UUID id, Authentication authentication) {
     return cancellation.cancel(authorization.actor(authentication), id);
   }
 
   @GetMapping("/enrollments/{id}")
+  @Operation(
+      summary = "Get an owned enrollment",
+      security = @SecurityRequirement(name = "bearerAuth"))
   EnrollmentView get(@PathVariable UUID id, Authentication authentication) {
     return queries.get(authorization.actor(authentication), id);
   }
 
   @GetMapping("/courses/{courseId}/students")
+  @Operation(
+      summary = "List students enrolled in an owned course",
+      security = @SecurityRequirement(name = "bearerAuth"))
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Paginated students"),
+    @ApiResponse(responseCode = "400", description = "Invalid page, size or sort"),
+    @ApiResponse(responseCode = "401", description = "Authentication required"),
+    @ApiResponse(responseCode = "403", description = "Course ownership required"),
+    @ApiResponse(responseCode = "404", description = "Course not found")
+  })
   PageResult<StudentEnrollmentView> studentsByCourse(
       @PathVariable UUID courseId,
       @RequestParam(defaultValue = "0") @Min(0) int page,
@@ -83,6 +117,16 @@ public class EnrollmentController {
   }
 
   @GetMapping("/students/{studentId}/courses")
+  @Operation(
+      summary = "List courses of an owned student",
+      security = @SecurityRequirement(name = "bearerAuth"))
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Paginated courses"),
+    @ApiResponse(responseCode = "400", description = "Invalid page, size or sort"),
+    @ApiResponse(responseCode = "401", description = "Authentication required"),
+    @ApiResponse(responseCode = "403", description = "Student ownership required"),
+    @ApiResponse(responseCode = "404", description = "Student not found")
+  })
   PageResult<StudentCourseView> coursesByStudent(
       @PathVariable UUID studentId,
       @RequestParam(defaultValue = "0") @Min(0) int page,
