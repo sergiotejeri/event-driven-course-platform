@@ -37,6 +37,10 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/certificates/verify/**")
                     .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/v1/courses/*/students")
+                    .hasAnyRole("ADMIN", "INSTRUCTOR")
+                    .requestMatchers(HttpMethod.GET, "/api/v1/students/*/courses")
+                    .hasAnyRole("ADMIN", "STUDENT")
                     .requestMatchers(
                         HttpMethod.GET,
                         "/api/v1/categories/**",

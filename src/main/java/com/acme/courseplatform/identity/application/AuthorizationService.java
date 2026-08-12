@@ -34,7 +34,10 @@ public class AuthorizationService {
   }
 
   public void requireCourseOwnerOrAdmin(Authentication authentication, UUID courseId) {
-    CurrentActor actor = actor(authentication);
+    requireCourseOwnerOrAdmin(actor(authentication), courseId);
+  }
+
+  public void requireCourseOwnerOrAdmin(CurrentActor actor, UUID courseId) {
     if (actor.hasRole("ADMIN")) {
       return;
     }
@@ -45,6 +48,21 @@ public class AuthorizationService {
             courseId,
             actor.userId());
     if (!Boolean.TRUE.equals(ownsCourse)) {
+      throw new AccessDeniedException("The resource belongs to another user");
+    }
+  }
+
+  public void requireStudentOwnerOrAdmin(CurrentActor actor, UUID studentId) {
+    if (actor.hasRole("ADMIN")) {
+      return;
+    }
+    Boolean ownsStudent =
+        jdbc.queryForObject(
+            "select exists(select 1 from students where id=? and user_id=?)",
+            Boolean.class,
+            studentId,
+            actor.userId());
+    if (!Boolean.TRUE.equals(ownsStudent)) {
       throw new AccessDeniedException("The resource belongs to another user");
     }
   }

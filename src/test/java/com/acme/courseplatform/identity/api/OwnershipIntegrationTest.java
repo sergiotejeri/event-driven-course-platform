@@ -2,7 +2,9 @@ package com.acme.courseplatform.identity.api;
 
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.acme.courseplatform.CoursePlatformApplication;
@@ -12,13 +14,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 @Testcontainers
-@SpringBootTest(classes = CoursePlatformApplication.class)
+@SpringBootTest(
+    classes = CoursePlatformApplication.class,
+    properties = "spring.rabbitmq.listener.simple.auto-startup=false")
 @AutoConfigureMockMvc
 class OwnershipIntegrationTest {
 
@@ -29,6 +34,7 @@ class OwnershipIntegrationTest {
   static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17.6-alpine");
 
   @Autowired MockMvc mvc;
+  @Autowired JdbcTemplate jdbc;
 
   @Test
   void instructorCannotCreateCourseForAnotherInstructorButAdminCan() throws Exception {
@@ -75,6 +81,58 @@ class OwnershipIntegrationTest {
             post("/api/v1/courses/{id}/publish", courseId)
                 .header(AUTHORIZATION, bearer(login("instructor@example.test"))))
         .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void relationalListingsEnforceCourseAndStudentOwnership() throws Exception {
+    String admin = login("admin@example.test");
+    String instructor = login("instructor@example.test");
+    String student = login("student@example.test");
+    String categoryId = createCategory(admin);
+    String ownCourseId = createCourse(admin, categoryId, DEMO_INSTRUCTOR_ID.toString());
+    String foreignInstructorId = createInstructor(admin);
+    String foreignCourseId = createCourse(admin, categoryId, foreignInstructorId);
+    UUID enrollmentId = UUID.randomUUID();
+    jdbc.update(
+        "insert into enrollments(id,student_id,course_id,status,progress) values (?,'30000000-0000-0000-0000-000000000003',?,'ACTIVE',40)",
+        enrollmentId,
+        UUID.fromString(ownCourseId));
+
+    mvc.perform(
+            get("/api/v1/enrollments/{id}", enrollmentId).header(AUTHORIZATION, bearer(student)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(enrollmentId.toString()))
+        .andExpect(jsonPath("$.progress").value(40));
+
+    mvc.perform(
+            get("/api/v1/courses/{id}/students", ownCourseId)
+                .header(AUTHORIZATION, bearer(instructor))
+                .param("page", "0")
+                .param("size", "10")
+                .param("sort", "progress,desc"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content[0].studentId").value("30000000-0000-0000-0000-000000000003"))
+        .andExpect(jsonPath("$.totalElements").value(1));
+
+    mvc.perform(
+            get("/api/v1/courses/{id}/students", foreignCourseId)
+                .header(AUTHORIZATION, bearer(instructor)))
+        .andExpect(status().isForbidden());
+
+    mvc.perform(
+            get("/api/v1/students/{id}/courses", "30000000-0000-0000-0000-000000000003")
+                .header(AUTHORIZATION, bearer(student))
+                .param("sort", "title,asc"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content[0].courseId").value(ownCourseId));
+
+    mvc.perform(
+            get("/api/v1/students/{id}/courses", UUID.randomUUID())
+                .header(AUTHORIZATION, bearer(student)))
+        .andExpect(status().isForbidden());
+
+    mvc.perform(get("/api/v1/students/{id}/courses", "30000000-0000-0000-0000-000000000003"))
+        .andExpect(status().isUnauthorized());
   }
 
   private String createCategory(String token) throws Exception {
