@@ -9,6 +9,7 @@ import com.acme.courseplatform.catalog.application.model.CourseData;
 import com.acme.courseplatform.catalog.application.model.CourseView;
 import com.acme.courseplatform.catalog.application.model.InstructorView;
 import com.acme.courseplatform.catalog.application.model.PageResult;
+import com.acme.courseplatform.catalog.infrastructure.cache.CatalogCache;
 import com.acme.courseplatform.identity.application.AuthorizationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -42,18 +43,21 @@ public class CatalogController {
   private final CourseService courses;
   private final CourseSearchService search;
   private final AuthorizationService authorization;
+  private final CatalogCache cache;
 
   public CatalogController(
       CategoryService categories,
       InstructorService instructors,
       CourseService courses,
       CourseSearchService search,
-      AuthorizationService authorization) {
+      AuthorizationService authorization,
+      CatalogCache cache) {
     this.categories = categories;
     this.instructors = instructors;
     this.courses = courses;
     this.search = search;
     this.authorization = authorization;
+    this.cache = cache;
   }
 
   @PostMapping("/categories")
@@ -138,12 +142,13 @@ public class CatalogController {
       @Valid @RequestBody CourseRequest request, Authentication authentication) {
     authorization.requireCourseInstructorOrAdmin(authentication, request.instructorId());
     CourseView created = courses.create(request.data());
+    cache.invalidateSearch();
     return ResponseEntity.created(URI.create("/api/v1/courses/" + created.id())).body(created);
   }
 
   @GetMapping("/courses/{id}")
   CourseView course(@PathVariable UUID id) {
-    return courses.get(id);
+    return cache.course(id, () -> courses.get(id));
   }
 
   @PutMapping("/courses/{id}")
@@ -154,21 +159,30 @@ public class CatalogController {
       Authentication authentication) {
     authorization.requireCourseOwnerOrAdmin(authentication, id);
     authorization.requireCourseInstructorOrAdmin(authentication, request.instructorId());
-    return courses.update(id, request.data());
+    CourseView updated = courses.update(id, request.data());
+    cache.evictCourse(id);
+    cache.invalidateSearch();
+    return updated;
   }
 
   @PostMapping("/courses/{id}/publish")
   @Operation(summary = "Publicar un curso", security = @SecurityRequirement(name = "bearerAuth"))
   CourseView publishCourse(@PathVariable UUID id, Authentication authentication) {
     authorization.requireCourseOwnerOrAdmin(authentication, id);
-    return courses.publish(id);
+    CourseView published = courses.publish(id);
+    cache.evictCourse(id);
+    cache.invalidateSearch();
+    return published;
   }
 
   @PostMapping("/courses/{id}/archive")
   @Operation(summary = "Archivar un curso", security = @SecurityRequirement(name = "bearerAuth"))
   CourseView archiveCourse(@PathVariable UUID id, Authentication authentication) {
     authorization.requireCourseOwnerOrAdmin(authentication, id);
-    return courses.archive(id);
+    CourseView archived = courses.archive(id);
+    cache.evictCourse(id);
+    cache.invalidateSearch();
+    return archived;
   }
 
   @DeleteMapping("/courses/{id}")
@@ -176,6 +190,8 @@ public class CatalogController {
   ResponseEntity<Void> deleteCourse(@PathVariable UUID id, Authentication authentication) {
     authorization.requireCourseOwnerOrAdmin(authentication, id);
     courses.delete(id);
+    cache.evictCourse(id);
+    cache.invalidateSearch();
     return ResponseEntity.noContent().build();
   }
 
@@ -187,12 +203,25 @@ public class CatalogController {
       @RequestParam(defaultValue = "0") @Min(0) int page,
       @RequestParam(defaultValue = "20") @Positive int size,
       @RequestParam(required = false) String sort) {
-    return search.search(level, title, available, page, size, sort);
+    String signature =
+        String.join(
+            ":",
+            value(level),
+            value(title),
+            value(available),
+            Integer.toString(page),
+            Integer.toString(size),
+            value(sort));
+    return cache.search(signature, () -> search.search(level, title, available, page, size, sort));
   }
 
   @GetMapping("/courses/search/cursor")
   PageResult<CourseView> cursorCourses(@RequestParam(defaultValue = "20") @Positive int size) {
-    return search.cursor(size);
+    return cache.search("cursor:" + size, () -> search.cursor(size));
+  }
+
+  private static String value(Object value) {
+    return value == null ? "" : value.toString();
   }
 
   record CategoryRequest(@NotBlank String name, @NotNull String description) {}

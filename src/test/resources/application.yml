@@ -1,0 +1,18 @@
+spring:
+  cache:
+    type: none
+  rabbitmq:
+    publisher-confirm-type: CORRELATED
+    publisher-returns: true
+
+app:
+  payment:
+    enrollment-created-outcome: CONFIRM
+  outbox:
+    scheduling-enabled: false
+    fixed-delay: PT1S
+  rate-limit:
+    enabled: false
+  security:
+    jwt-secret: course-platform-development-secret-change-me
+    token-ttl: 1h
