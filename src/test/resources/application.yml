@@ -1,6 +1,12 @@
 spring:
+  ai:
+    mcp:
+      server:
+        enabled: false
   cache:
     type: none
+  jpa:
+    open-in-view: false
   rabbitmq:
     publisher-confirm-type: CORRELATED
     publisher-returns: true

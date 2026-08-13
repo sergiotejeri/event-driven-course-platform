@@ -27,6 +27,15 @@ spring:
       port: ${REDIS_PORT:6379}
   cache:
     type: redis
+  ai:
+    mcp:
+      server:
+        name: course-platform
+        version: 1.0.0
+        protocol: STREAMABLE
+        type: SYNC
+        annotation-scanner:
+          enabled: true
 
 app:
   payment:

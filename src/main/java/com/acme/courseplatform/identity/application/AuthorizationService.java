@@ -18,7 +18,10 @@ public class AuthorizationService {
   }
 
   public void requireCourseInstructorOrAdmin(Authentication authentication, UUID instructorId) {
-    CurrentActor actor = actor(authentication);
+    requireCourseInstructorOrAdmin(actor(authentication), instructorId);
+  }
+
+  public void requireCourseInstructorOrAdmin(CurrentActor actor, UUID instructorId) {
     if (actor.hasRole("ADMIN")) {
       return;
     }
@@ -30,6 +33,12 @@ public class AuthorizationService {
             actor.userId());
     if (!Boolean.TRUE.equals(ownsInstructor)) {
       throw new AccessDeniedException("The resource belongs to another user");
+    }
+  }
+
+  public void requireAdmin(CurrentActor actor) {
+    if (!actor.hasRole("ADMIN")) {
+      throw new AccessDeniedException("Administrator role required");
     }
   }
 

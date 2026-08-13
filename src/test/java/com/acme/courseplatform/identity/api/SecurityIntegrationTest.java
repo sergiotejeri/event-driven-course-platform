@@ -1,5 +1,6 @@
 package com.acme.courseplatform.identity.api;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -16,7 +17,13 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 @Testcontainers
-@SpringBootTest(classes = CoursePlatformApplication.class)
+@SpringBootTest(
+    classes = CoursePlatformApplication.class,
+    properties = {
+      "spring.ai.mcp.server.enabled=true",
+      "spring.ai.mcp.server.protocol=STREAMABLE",
+      "spring.rabbitmq.listener.simple.auto-startup=false"
+    })
 @AutoConfigureMockMvc
 class SecurityIntegrationTest {
 
@@ -58,6 +65,22 @@ class SecurityIntegrationTest {
                 .content("{\"email\":\"admin@example.test\",\"password\":\"wrong\"}"))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.errorCode").value("INVALID_CREDENTIALS"));
+  }
+
+  @Test
+  void mcpTransportRequiresAuthenticationAndExistsForValidToken() throws Exception {
+    mvc.perform(post("/mcp").contentType("application/json").content("{}"))
+        .andExpect(status().isUnauthorized());
+
+    String admin = login("admin@example.test", "password");
+    mvc.perform(
+            post("/mcp")
+                .header("Authorization", "Bearer " + admin)
+                .contentType("application/json")
+                .content("{}"))
+        .andExpect(
+            result ->
+                assertThat(result.getResponse().getStatus()).isNotEqualTo(401).isNotEqualTo(404));
   }
 
   private String login(String email, String password) throws Exception {
