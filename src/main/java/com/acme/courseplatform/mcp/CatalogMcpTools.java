@@ -46,13 +46,21 @@ public class CatalogMcpTools {
 
   @McpTool(name = "list_courses", description = "List published courses with pagination")
   public PageResult<CourseView> listCourses(int page, int size, String sort) {
-    return search.search(null, null, null, page, size, sort);
+    return search.search(null, null, null, null, null, null, page, size, sort);
   }
 
   @McpTool(name = "search_courses", description = "Search published courses by catalog filters")
   public PageResult<CourseView> searchCourses(
-      String level, String title, Boolean available, int page, int size, String sort) {
-    return search.search(level, title, available, page, size, sort);
+      UUID categoryId,
+      String level,
+      BigDecimal minPrice,
+      BigDecimal maxPrice,
+      String title,
+      Boolean available,
+      int page,
+      int size,
+      String sort) {
+    return search.search(categoryId, level, minPrice, maxPrice, title, available, page, size, sort);
   }
 
   @McpTool(name = "get_course", description = "Get one course by identifier")

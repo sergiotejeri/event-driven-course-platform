@@ -14,6 +14,7 @@ import com.acme.courseplatform.messaging.domain.Events.EnrollmentCreatedV1;
 import com.acme.courseplatform.observability.BusinessMetrics;
 import com.acme.courseplatform.shared.api.ConflictException;
 import com.acme.courseplatform.shared.api.ResourceNotFoundException;
+import com.acme.courseplatform.shared.application.CorrelationContext;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.nio.charset.StandardCharsets;
@@ -36,6 +37,7 @@ public class EnrollStudentUseCase {
   private final OutboxStore outbox;
   private final BusinessMetrics metrics;
   private final MeterRegistry meterRegistry;
+  private final CorrelationContext correlation;
 
   public EnrollStudentUseCase(
       CourseSeatPort seats,
@@ -45,7 +47,8 @@ public class EnrollStudentUseCase {
       EnrollmentIdempotencyPort idempotency,
       OutboxStore outbox,
       BusinessMetrics metrics,
-      MeterRegistry meterRegistry) {
+      MeterRegistry meterRegistry,
+      CorrelationContext correlation) {
     this.seats = seats;
     this.students = students;
     this.enrollments = enrollments;
@@ -54,6 +57,7 @@ public class EnrollStudentUseCase {
     this.outbox = outbox;
     this.metrics = metrics;
     this.meterRegistry = meterRegistry;
+    this.correlation = correlation;
   }
 
   @Transactional
@@ -107,7 +111,7 @@ public class EnrollStudentUseCase {
             "Enrollment",
             enrollmentId,
             Instant.now(),
-            eventId,
+            correlation.currentId(),
             null,
             new EnrollmentCreatedV1(enrollmentId, studentId, courseId)));
     EnrollmentResult result = new EnrollmentResult(enrollmentId, paymentId, false);

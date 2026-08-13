@@ -5,6 +5,7 @@ import com.acme.courseplatform.catalog.application.model.CourseView;
 import com.acme.courseplatform.catalog.application.model.InstructorView;
 import com.acme.courseplatform.catalog.application.model.PageResult;
 import com.acme.courseplatform.shared.query.SortSpec;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 public interface CatalogStore {
@@ -30,7 +31,15 @@ public interface CatalogStore {
   void deleteInstructor(UUID id);
 
   PageResult<CourseView> searchCourses(
-      String level, String title, Boolean available, int page, int size, SortSpec sort);
+      UUID categoryId,
+      String level,
+      BigDecimal minPrice,
+      BigDecimal maxPrice,
+      String title,
+      Boolean available,
+      int page,
+      int size,
+      SortSpec sort);
 
   PageResult<CourseView> cursorCourses(int size);
 }

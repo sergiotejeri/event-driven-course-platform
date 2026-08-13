@@ -172,12 +172,32 @@ public class JdbcCatalogStore implements CatalogStore {
 
   @Override
   public PageResult<CourseView> searchCourses(
-      String level, String title, Boolean available, int page, int size, SortSpec sort) {
+      UUID categoryId,
+      String level,
+      BigDecimal minPrice,
+      BigDecimal maxPrice,
+      String title,
+      Boolean available,
+      int page,
+      int size,
+      SortSpec sort) {
     StringBuilder where = new StringBuilder(" where status = 'PUBLISHED'");
     List<Object> parameters = new ArrayList<>();
+    if (categoryId != null) {
+      where.append(" and category_id = ?");
+      parameters.add(categoryId);
+    }
     if (level != null) {
       where.append(" and level = ?");
       parameters.add(level);
+    }
+    if (minPrice != null) {
+      where.append(" and price >= ?");
+      parameters.add(minPrice);
+    }
+    if (maxPrice != null) {
+      where.append(" and price <= ?");
+      parameters.add(maxPrice);
     }
     if (title != null) {
       where.append(" and lower(title) like lower(?)");

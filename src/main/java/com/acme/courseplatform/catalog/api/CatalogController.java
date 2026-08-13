@@ -197,7 +197,10 @@ public class CatalogController {
 
   @GetMapping("/courses/search")
   PageResult<CourseView> searchCourses(
+      @RequestParam(required = false) UUID categoryId,
       @RequestParam(required = false) String level,
+      @RequestParam(required = false) @DecimalMin("0.00") BigDecimal minPrice,
+      @RequestParam(required = false) @DecimalMin("0.00") BigDecimal maxPrice,
       @RequestParam(required = false) String title,
       @RequestParam(required = false) Boolean available,
       @RequestParam(defaultValue = "0") @Min(0) int page,
@@ -206,13 +209,20 @@ public class CatalogController {
     String signature =
         String.join(
             ":",
+            value(categoryId),
             value(level),
+            value(minPrice),
+            value(maxPrice),
             value(title),
             value(available),
             Integer.toString(page),
             Integer.toString(size),
             value(sort));
-    return cache.search(signature, () -> search.search(level, title, available, page, size, sort));
+    return cache.search(
+        signature,
+        () ->
+            search.search(
+                categoryId, level, minPrice, maxPrice, title, available, page, size, sort));
   }
 
   @GetMapping("/courses/search/cursor")

@@ -259,6 +259,90 @@ class CatalogControllerTest {
         .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
   }
 
+  @Test
+  void combinesCategoryAndPriceFiltersWithStablePaginationAndSorting() throws Exception {
+    String suffix = UUID.randomUUID().toString();
+    String categoryId = createCategory("Search " + suffix);
+    String otherCategoryId = createCategory("Other " + suffix);
+    String instructorId = createInstructor("search-" + suffix + "@example.test");
+
+    createPublishedCourse("Search basic " + suffix, "49.90", categoryId, instructorId);
+    createPublishedCourse("Search intermediate " + suffix, "79.90", categoryId, instructorId);
+    createPublishedCourse("Search advanced " + suffix, "109.90", categoryId, instructorId);
+    createPublishedCourse("Search below range " + suffix, "39.90", categoryId, instructorId);
+    createPublishedCourse("Search above range " + suffix, "119.90", categoryId, instructorId);
+    createPublishedCourse("Search unrelated " + suffix, "79.90", otherCategoryId, instructorId);
+
+    mvc.perform(
+            get("/api/v1/courses/search")
+                .param("categoryId", categoryId)
+                .param("minPrice", "49.90")
+                .param("maxPrice", "109.90")
+                .param("title", suffix)
+                .param("page", "1")
+                .param("size", "1")
+                .param("sort", "price,desc"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content.length()").value(1))
+        .andExpect(jsonPath("$.content[0].title").value("Search intermediate " + suffix))
+        .andExpect(jsonPath("$.content[0].price").value(79.90))
+        .andExpect(jsonPath("$.totalElements").value(3))
+        .andExpect(jsonPath("$.page").value(1))
+        .andExpect(jsonPath("$.size").value(1));
+  }
+
+  private String createCategory(String name) throws Exception {
+    String response =
+        mvc.perform(
+                post("/api/v1/categories")
+                    .with(admin())
+                    .contentType("application/json")
+                    .content("{\"name\":\"%s\",\"description\":\"Search tests\"}".formatted(name)))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    return value(response, "id");
+  }
+
+  private String createInstructor(String email) throws Exception {
+    String response =
+        mvc.perform(
+                post("/api/v1/instructors")
+                    .with(admin())
+                    .contentType("application/json")
+                    .content(
+                        ("{\"name\":\"Search Instructor\",\"email\":\"%s\","
+                                + "\"biography\":\"Search tests\"}")
+                            .formatted(email)))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    return value(response, "id");
+  }
+
+  private void createPublishedCourse(
+      String title, String price, String categoryId, String instructorId) throws Exception {
+    String response =
+        mvc.perform(
+                post("/api/v1/courses")
+                    .with(admin())
+                    .contentType("application/json")
+                    .content(
+                        ("{\"title\":\"%s\",\"description\":\"Search tests\","
+                                + "\"estimatedHours\":10,\"level\":\"INTERMEDIATE\","
+                                + "\"price\":%s,\"currency\":\"EUR\",\"capacity\":10,"
+                                + "\"categoryId\":\"%s\",\"instructorId\":\"%s\"}")
+                            .formatted(title, price, categoryId, instructorId)))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    mvc.perform(post("/api/v1/courses/{id}/publish", value(response, "id")).with(admin()))
+        .andExpect(status().isOk());
+  }
+
   private static String value(String json, String field) {
     String marker = "\"" + field + "\":\"";
     int start = json.indexOf(marker) + marker.length();

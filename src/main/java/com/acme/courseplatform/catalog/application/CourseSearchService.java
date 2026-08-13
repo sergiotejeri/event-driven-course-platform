@@ -5,7 +5,9 @@ import com.acme.courseplatform.catalog.application.model.PageResult;
 import com.acme.courseplatform.catalog.application.port.CatalogStore;
 import com.acme.courseplatform.shared.query.SortDirection;
 import com.acme.courseplatform.shared.query.SortSpec;
+import java.math.BigDecimal;
 import java.util.Map;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,7 +22,15 @@ public class CourseSearchService {
 
   @Transactional(readOnly = true)
   public PageResult<CourseView> search(
-      String level, String title, Boolean available, int page, int size, String sort) {
+      UUID categoryId,
+      String level,
+      BigDecimal minPrice,
+      BigDecimal maxPrice,
+      String title,
+      Boolean available,
+      int page,
+      int size,
+      String sort) {
     SortSpec spec =
         SortSpec.parse(
             sort,
@@ -32,7 +42,8 @@ public class CourseSearchService {
             "createdAt",
             SortDirection.DESC,
             "id");
-    return store.searchCourses(level, title, available, page, size, spec);
+    return store.searchCourses(
+        categoryId, level, minPrice, maxPrice, title, available, page, size, spec);
   }
 
   @Transactional(readOnly = true)
