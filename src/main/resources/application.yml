@@ -58,6 +58,9 @@ management:
     sampling:
       probability: ${TRACING_SAMPLE_PROBABILITY:1.0}
   otlp:
+    metrics:
+      export:
+        enabled: false
     tracing:
       endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
   metrics:

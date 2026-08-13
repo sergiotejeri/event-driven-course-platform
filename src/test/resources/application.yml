@@ -12,6 +12,10 @@ spring:
     publisher-returns: true
 
 management:
+  otlp:
+    metrics:
+      export:
+        enabled: false
   endpoints:
     web:
       exposure:
