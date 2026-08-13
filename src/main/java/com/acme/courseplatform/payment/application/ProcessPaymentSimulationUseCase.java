@@ -1,6 +1,7 @@
 package com.acme.courseplatform.payment.application;
 
 import com.acme.courseplatform.messaging.application.ProcessedEventService;
+import com.acme.courseplatform.observability.BusinessMetrics;
 import com.acme.courseplatform.payment.application.port.PaymentRepository;
 import com.acme.courseplatform.payment.application.port.PaymentTransactionStore;
 import com.acme.courseplatform.shared.api.ResourceNotFoundException;
@@ -17,14 +18,17 @@ public class ProcessPaymentSimulationUseCase {
   private final PaymentRepository payments;
   private final PaymentTransactionStore transactions;
   private final ProcessedEventService processedEvents;
+  private final BusinessMetrics metrics;
 
   public ProcessPaymentSimulationUseCase(
       PaymentRepository payments,
       PaymentTransactionStore transactions,
-      ProcessedEventService processedEvents) {
+      ProcessedEventService processedEvents,
+      BusinessMetrics metrics) {
     this.payments = payments;
     this.transactions = transactions;
     this.processedEvents = processedEvents;
+    this.metrics = metrics;
   }
 
   @Transactional
@@ -37,14 +41,16 @@ public class ProcessPaymentSimulationUseCase {
         payments
             .findById(command.paymentId())
             .orElseThrow(() -> new ResourceNotFoundException("payment", command.paymentId()));
-    transactions.completePending(
+    if (transactions.completePending(
         UUID.randomUUID(),
         payment.id(),
         command.enrollmentId(),
         confirmed,
         payment.amount(),
         payment.currency(),
-        Instant.now());
+        Instant.now())) {
+      metrics.paymentOutcome(confirmed);
+    }
   }
 
   private boolean switchOutcome(String outcome) {

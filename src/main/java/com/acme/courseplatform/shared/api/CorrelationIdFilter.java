@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.UUID;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -25,6 +26,8 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
     }
     request.setAttribute(ATTRIBUTE, correlationId);
     response.setHeader(HEADER, correlationId);
-    chain.doFilter(request, response);
+    try (MDC.MDCCloseable ignored = MDC.putCloseable("correlationId", correlationId)) {
+      chain.doFilter(request, response);
+    }
   }
 }

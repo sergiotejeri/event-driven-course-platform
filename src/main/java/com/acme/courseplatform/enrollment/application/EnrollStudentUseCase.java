@@ -11,8 +11,11 @@ import com.acme.courseplatform.identity.application.CurrentActor;
 import com.acme.courseplatform.messaging.application.port.OutboxStore;
 import com.acme.courseplatform.messaging.domain.EventEnvelope;
 import com.acme.courseplatform.messaging.domain.Events.EnrollmentCreatedV1;
+import com.acme.courseplatform.observability.BusinessMetrics;
 import com.acme.courseplatform.shared.api.ConflictException;
 import com.acme.courseplatform.shared.api.ResourceNotFoundException;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -31,6 +34,8 @@ public class EnrollStudentUseCase {
   private final PaymentRepository payments;
   private final EnrollmentIdempotencyPort idempotency;
   private final OutboxStore outbox;
+  private final BusinessMetrics metrics;
+  private final MeterRegistry meterRegistry;
 
   public EnrollStudentUseCase(
       CourseSeatPort seats,
@@ -38,17 +43,33 @@ public class EnrollStudentUseCase {
       EnrollmentRepository enrollments,
       PaymentRepository payments,
       EnrollmentIdempotencyPort idempotency,
-      OutboxStore outbox) {
+      OutboxStore outbox,
+      BusinessMetrics metrics,
+      MeterRegistry meterRegistry) {
     this.seats = seats;
     this.students = students;
     this.enrollments = enrollments;
     this.payments = payments;
     this.idempotency = idempotency;
     this.outbox = outbox;
+    this.metrics = metrics;
+    this.meterRegistry = meterRegistry;
   }
 
   @Transactional
   public EnrollmentResult enroll(CurrentActor actor, UUID courseId, String idempotencyKey) {
+    Timer.Sample sample = metrics.enrollmentStarted(meterRegistry);
+    try {
+      EnrollmentResult result = doEnroll(actor, courseId, idempotencyKey);
+      metrics.enrollmentSucceeded(sample);
+      return result;
+    } catch (RuntimeException exception) {
+      metrics.enrollmentRejected(sample);
+      throw exception;
+    }
+  }
+
+  private EnrollmentResult doEnroll(CurrentActor actor, UUID courseId, String idempotencyKey) {
     String key = requiredKey(idempotencyKey);
     String requestHash = hash(courseId.toString());
     var replay = idempotency.find(actor.userId(), key);

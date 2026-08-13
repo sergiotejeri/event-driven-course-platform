@@ -1,6 +1,8 @@
 package com.acme.courseplatform.messaging.infrastructure;
 
 import com.acme.courseplatform.messaging.application.port.OutboxStore.OutboxMessage;
+import com.acme.courseplatform.observability.EventObservationConvention;
+import io.micrometer.observation.Observation;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
@@ -11,12 +13,15 @@ import org.springframework.stereotype.Component;
 public class OutboxPublisher {
 
   private final RabbitTemplate rabbit;
+  private final EventObservationConvention observations;
 
-  public OutboxPublisher(RabbitTemplate rabbit) {
+  public OutboxPublisher(RabbitTemplate rabbit, EventObservationConvention observations) {
     this.rabbit = rabbit;
+    this.observations = observations;
   }
 
   public PublishResult publish(OutboxMessage message) {
+    Observation observation = observations.start(message.eventType(), "publish");
     CorrelationData correlation = new CorrelationData(message.eventId().toString());
     try {
       rabbit.convertAndSend(
@@ -43,11 +48,16 @@ public class OutboxPublisher {
       CorrelationData.Confirm confirm =
           correlation.getFuture().get(Duration.ofSeconds(5).toMillis(), TimeUnit.MILLISECONDS);
       if (confirm.ack()) {
+        observation.stop();
         return PublishResult.ack();
       }
-      return PublishResult.rejected(
-          confirm.reason() == null ? "publisher confirm failed" : confirm.reason());
+      String reason = confirm.reason() == null ? "publisher confirm failed" : confirm.reason();
+      observation.error(new IllegalStateException(reason));
+      observation.stop();
+      return PublishResult.rejected(reason);
     } catch (Exception exception) {
+      observation.error(exception);
+      observation.stop();
       return PublishResult.rejected(
           exception.getMessage() == null
               ? exception.getClass().getSimpleName()

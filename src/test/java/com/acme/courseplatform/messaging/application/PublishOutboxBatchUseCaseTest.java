@@ -12,6 +12,7 @@ import com.acme.courseplatform.messaging.application.port.OutboxStore;
 import com.acme.courseplatform.messaging.application.port.OutboxStore.OutboxMessage;
 import com.acme.courseplatform.messaging.infrastructure.OutboxPublisher;
 import com.acme.courseplatform.messaging.infrastructure.OutboxPublisher.PublishResult;
+import com.acme.courseplatform.observability.BusinessMetrics;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -21,7 +22,9 @@ class PublishOutboxBatchUseCaseTest {
 
   private final OutboxStore store = mock(OutboxStore.class);
   private final OutboxPublisher publisher = mock(OutboxPublisher.class);
-  private final PublishOutboxBatchUseCase useCase = new PublishOutboxBatchUseCase(store, publisher);
+  private final BusinessMetrics metrics = mock(BusinessMetrics.class);
+  private final PublishOutboxBatchUseCase useCase =
+      new PublishOutboxBatchUseCase(store, publisher, metrics);
 
   @Test
   void marksPublishedOnlyAfterBrokerAcknowledgement() {
@@ -33,6 +36,7 @@ class PublishOutboxBatchUseCaseTest {
 
     verify(store).markPublished(message.eventId());
     verify(store, never()).recordFailure(any(), anyString());
+    verify(metrics).outboxPublished(1);
   }
 
   @Test
@@ -45,6 +49,7 @@ class PublishOutboxBatchUseCaseTest {
 
     verify(store, never()).markPublished(message.eventId());
     verify(store).recordFailure(message.eventId(), "broker nack");
+    verify(metrics).outboxFailed();
   }
 
   private OutboxMessage message() {

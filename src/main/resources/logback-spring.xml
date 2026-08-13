@@ -1,0 +1,14 @@
+<configuration>
+  <springProfile name="!test">
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+      <encoder class="ch.qos.logback.classic.encoder.JsonEncoder"/>
+    </appender>
+    <root level="INFO"><appender-ref ref="JSON"/></root>
+  </springProfile>
+  <springProfile name="test">
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+    <root level="INFO"><appender-ref ref="CONSOLE"/></root>
+  </springProfile>
+</configuration>
