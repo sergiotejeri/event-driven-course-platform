@@ -32,6 +32,8 @@ public class PublishOutboxBatchUseCase {
       }
     }
     metrics.outboxPublished(published);
+    var stats = store.stats();
+    metrics.updateOutboxGauges(stats.pending(), stats.oldest());
     return published;
   }
 }

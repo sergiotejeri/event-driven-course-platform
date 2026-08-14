@@ -81,7 +81,17 @@ public class EnrollmentController {
   }
 
   @DeleteMapping("/enrollments/{id}")
-  @Operation(summary = "Cancel an enrollment", security = @SecurityRequirement(name = "bearerAuth"))
+  @Operation(
+      summary = "Cancel an enrollment",
+      description = "Cancels an owned enrollment and releases its reserved seat atomically",
+      security = @SecurityRequirement(name = "bearerAuth"))
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Enrollment cancelled or already cancelled"),
+    @ApiResponse(responseCode = "401", description = "Authentication required"),
+    @ApiResponse(responseCode = "403", description = "Enrollment ownership required"),
+    @ApiResponse(responseCode = "404", description = "Enrollment not found"),
+    @ApiResponse(responseCode = "409", description = "Enrollment cannot be cancelled")
+  })
   CancelEnrollmentUseCase.CancellationResult cancel(
       @PathVariable UUID id, Authentication authentication) {
     return cancellation.cancel(authorization.actor(authentication), id);
@@ -90,7 +100,15 @@ public class EnrollmentController {
   @GetMapping("/enrollments/{id}")
   @Operation(
       summary = "Get an owned enrollment",
+      description =
+          "Returns an enrollment after checking student ownership or administrator access",
       security = @SecurityRequirement(name = "bearerAuth"))
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Enrollment found"),
+    @ApiResponse(responseCode = "401", description = "Authentication required"),
+    @ApiResponse(responseCode = "403", description = "Enrollment ownership required"),
+    @ApiResponse(responseCode = "404", description = "Enrollment not found")
+  })
   EnrollmentView get(@PathVariable UUID id, Authentication authentication) {
     return queries.get(authorization.actor(authentication), id);
   }
@@ -98,6 +116,8 @@ public class EnrollmentController {
   @GetMapping("/courses/{courseId}/students")
   @Operation(
       summary = "List students enrolled in an owned course",
+      description =
+          "Returns a paginated relational projection without loading one entity graph per row",
       security = @SecurityRequirement(name = "bearerAuth"))
   @ApiResponses({
     @ApiResponse(responseCode = "200", description = "Paginated students"),
@@ -119,6 +139,8 @@ public class EnrollmentController {
   @GetMapping("/students/{studentId}/courses")
   @Operation(
       summary = "List courses of an owned student",
+      description =
+          "Returns a paginated relational projection of the student's enrollments and courses",
       security = @SecurityRequirement(name = "bearerAuth"))
   @ApiResponses({
     @ApiResponse(responseCode = "200", description = "Paginated courses"),

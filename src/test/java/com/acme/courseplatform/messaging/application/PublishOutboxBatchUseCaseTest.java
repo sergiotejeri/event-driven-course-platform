@@ -10,9 +10,11 @@ import static org.mockito.Mockito.when;
 
 import com.acme.courseplatform.messaging.application.port.OutboxStore;
 import com.acme.courseplatform.messaging.application.port.OutboxStore.OutboxMessage;
+import com.acme.courseplatform.messaging.application.port.OutboxStore.OutboxStats;
 import com.acme.courseplatform.messaging.infrastructure.OutboxPublisher;
 import com.acme.courseplatform.messaging.infrastructure.OutboxPublisher.PublishResult;
 import com.acme.courseplatform.observability.BusinessMetrics;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -30,6 +32,7 @@ class PublishOutboxBatchUseCaseTest {
   void marksPublishedOnlyAfterBrokerAcknowledgement() {
     OutboxMessage message = message();
     when(store.claimBatch(10)).thenReturn(List.of(message));
+    when(store.stats()).thenReturn(new OutboxStats(0, Duration.ZERO));
     when(publisher.publish(message)).thenReturn(PublishResult.ack());
 
     assertThat(useCase.publishBatch(10)).isEqualTo(1);
@@ -43,6 +46,7 @@ class PublishOutboxBatchUseCaseTest {
   void recordsFailureAfterBrokerRejection() {
     OutboxMessage message = message();
     when(store.claimBatch(10)).thenReturn(List.of(message));
+    when(store.stats()).thenReturn(new OutboxStats(1, Duration.ofSeconds(5)));
     when(publisher.publish(message)).thenReturn(PublishResult.rejected("broker nack"));
 
     assertThat(useCase.publishBatch(10)).isZero();
@@ -50,6 +54,16 @@ class PublishOutboxBatchUseCaseTest {
     verify(store, never()).markPublished(message.eventId());
     verify(store).recordFailure(message.eventId(), "broker nack");
     verify(metrics).outboxFailed();
+  }
+
+  @Test
+  void refreshesOutboxGaugesAfterPublishingBatch() {
+    when(store.claimBatch(10)).thenReturn(List.of());
+    when(store.stats()).thenReturn(new OutboxStats(3, Duration.ofSeconds(42)));
+
+    useCase.publishBatch(10);
+
+    verify(metrics).updateOutboxGauges(3, Duration.ofSeconds(42));
   }
 
   private OutboxMessage message() {

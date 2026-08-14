@@ -1,6 +1,9 @@
 package com.acme.courseplatform.identity.api;
 
 import com.acme.courseplatform.identity.application.LoginUseCase;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -21,6 +24,14 @@ public class AuthController {
   }
 
   @PostMapping("/login")
+  @Operation(
+      summary = "Authenticate a user",
+      description = "Validates local credentials and returns a short-lived JWT bearer token")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Authentication successful"),
+    @ApiResponse(responseCode = "400", description = "Invalid request body"),
+    @ApiResponse(responseCode = "401", description = "Invalid credentials")
+  })
   LoginResponse login(@Valid @RequestBody LoginRequest request) {
     LoginUseCase.LoginResult result = login.login(request.email(), request.password());
     return new LoginResponse(result.token(), "Bearer", result.expiresAt());

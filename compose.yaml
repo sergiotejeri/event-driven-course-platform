@@ -75,6 +75,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       JWT_SECRET: ${JWT_SECRET:-course-platform-development-secret-change-me}
+      PROVISIONING_PASSWORD: ${PROVISIONING_PASSWORD:-change-me-before-use}
       OUTBOX_SCHEDULING_ENABLED: "true"
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
     ports:
@@ -120,7 +121,8 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - grafana-data:/var/lib/grafana
-      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
     ports:
       - "3000:3000"
     depends_on:
@@ -137,4 +139,3 @@ volumes:
   rabbitmq-data:
   redis-data:
   grafana-data:
-

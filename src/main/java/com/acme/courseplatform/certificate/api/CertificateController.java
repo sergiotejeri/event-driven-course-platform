@@ -28,7 +28,10 @@ public class CertificateController {
   }
 
   @GetMapping("/verify/{verificationCode}")
-  @Operation(summary = "Verify a certificate by its public code")
+  @Operation(
+      summary = "Verify a certificate by its public code",
+      description =
+          "Returns certificate data for a public verification code without authentication")
   @ApiResponses({
     @ApiResponse(responseCode = "200", description = "Certificate found"),
     @ApiResponse(responseCode = "404", description = "Certificate not found")
@@ -40,6 +43,7 @@ public class CertificateController {
   @GetMapping("/enrollment/{enrollmentId}")
   @Operation(
       summary = "Get the certificate for an owned enrollment",
+      description = "Returns the certificate associated with an enrollment visible to the caller",
       security = @SecurityRequirement(name = "bearerAuth"))
   @ApiResponses({
     @ApiResponse(responseCode = "200", description = "Certificate found"),

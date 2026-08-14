@@ -34,6 +34,7 @@ public class PaymentController {
   @PostMapping("/{id}/simulate")
   @Operation(
       summary = "Request an asynchronous payment result",
+      description = "Queues a simulated confirmation or failure for an owned pending payment",
       security = @SecurityRequirement(name = "bearerAuth"))
   @ApiResponses({
     @ApiResponse(responseCode = "202", description = "Simulation event accepted"),

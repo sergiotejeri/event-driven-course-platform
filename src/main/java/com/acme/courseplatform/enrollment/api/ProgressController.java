@@ -2,6 +2,10 @@ package com.acme.courseplatform.enrollment.api;
 
 import com.acme.courseplatform.enrollment.application.UpdateProgressUseCase;
 import com.acme.courseplatform.identity.application.AuthorizationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -26,6 +30,19 @@ public class ProgressController {
   }
 
   @PatchMapping("/{id}/progress")
+  @Operation(
+      summary = "Update enrollment progress",
+      description =
+          "Advances an owned active enrollment and completes it when progress reaches 100",
+      security = @SecurityRequirement(name = "bearerAuth"))
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Progress updated"),
+    @ApiResponse(responseCode = "400", description = "Progress is outside the accepted range"),
+    @ApiResponse(responseCode = "401", description = "Authentication required"),
+    @ApiResponse(responseCode = "403", description = "Enrollment ownership required"),
+    @ApiResponse(responseCode = "404", description = "Enrollment not found"),
+    @ApiResponse(responseCode = "409", description = "Invalid state or progress regression")
+  })
   UpdateProgressUseCase.ProgressResult update(
       Authentication authentication,
       @PathVariable UUID id,

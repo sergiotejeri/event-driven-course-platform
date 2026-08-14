@@ -3,9 +3,9 @@
 .idea
 .vscode
 target
+tmp
 *.iml
 *.log
 .env
 .env.*
 !.env.example
-

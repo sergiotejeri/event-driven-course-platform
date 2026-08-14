@@ -3,6 +3,7 @@ package com.acme.courseplatform.messaging.infrastructure;
 import com.acme.courseplatform.messaging.application.port.OutboxStore;
 import com.acme.courseplatform.messaging.domain.EventEnvelope;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -71,5 +72,14 @@ public class JdbcOutboxStore implements OutboxStore {
         "update outbox_events set attempts=attempts+1,last_error=?,available_at=now()+interval '5 seconds' where event_id=?",
         bounded,
         eventId);
+  }
+
+  @Override
+  public OutboxStats stats() {
+    return jdbc.queryForObject(
+        "select count(*) as pending,coalesce(extract(epoch from now()-min(occurred_at)),0)::bigint as oldest_seconds from outbox_events where published_at is null",
+        (result, row) ->
+            new OutboxStats(
+                result.getLong("pending"), Duration.ofSeconds(result.getLong("oldest_seconds"))));
   }
 }
