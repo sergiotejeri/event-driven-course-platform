@@ -1,29 +1,43 @@
 package com.acme.courseplatform.catalog.infrastructure.persistence;
 
 import com.acme.courseplatform.catalog.application.model.CategoryView;
+import com.acme.courseplatform.catalog.application.model.CourseCursor;
 import com.acme.courseplatform.catalog.application.model.CourseView;
+import com.acme.courseplatform.catalog.application.model.CursorPage;
 import com.acme.courseplatform.catalog.application.model.InstructorView;
 import com.acme.courseplatform.catalog.application.model.PageResult;
 import com.acme.courseplatform.catalog.application.port.CatalogStore;
+import com.acme.courseplatform.catalog.domain.CategoryStatus;
 import com.acme.courseplatform.shared.api.ConflictException;
 import com.acme.courseplatform.shared.api.ResourceNotFoundException;
 import com.acme.courseplatform.shared.query.SortSpec;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class JdbcCatalogStore implements CatalogStore {
 
   private final JdbcTemplate jdbc;
+  private final PasswordEncoder passwordEncoder;
+  private final String provisioningPassword;
 
-  public JdbcCatalogStore(JdbcTemplate jdbc) {
+  public JdbcCatalogStore(
+      JdbcTemplate jdbc,
+      PasswordEncoder passwordEncoder,
+      @Value("${app.security.provisioning-password}") String provisioningPassword) {
     this.jdbc = jdbc;
+    this.passwordEncoder = passwordEncoder;
+    this.provisioningPassword = provisioningPassword;
   }
 
   @Override
@@ -66,6 +80,16 @@ public class JdbcCatalogStore implements CatalogStore {
   }
 
   @Override
+  public CategoryView changeCategoryStatus(UUID id, CategoryStatus status) {
+    if (jdbc.update(
+            "update categories set status = ?, updated_at = now() where id = ?", status.name(), id)
+        == 0) {
+      throw new ResourceNotFoundException("Category", id);
+    }
+    return getCategory(id);
+  }
+
+  @Override
   public void deleteCategory(UUID id) {
     if (jdbc.update("delete from categories where id = ?", id) == 0) {
       throw new ResourceNotFoundException("Category", id);
@@ -98,7 +122,8 @@ public class JdbcCatalogStore implements CatalogStore {
         "insert into users(id, email, password_hash, enabled) values (?, ?, ?, true)",
         userId,
         email,
-        "catalog-pending-account");
+        passwordEncoder.encode(provisioningPassword));
+    jdbc.update("insert into user_roles(user_id, role_name) values (?, 'INSTRUCTOR')", userId);
     jdbc.update(
         "insert into instructors(id, user_id, name, email, biography) values (?, ?, ?, ?, ?)",
         id,
@@ -220,10 +245,37 @@ public class JdbcCatalogStore implements CatalogStore {
   }
 
   @Override
-  public PageResult<CourseView> cursorCourses(int size) {
-    List<CourseView> content =
-        jdbc.query("select * from courses order by created_at, id limit ?", this::course, size);
-    return new PageResult<>(content, content.size(), 0, size);
+  public CursorPage<CourseView> cursorCourses(CourseCursor cursor, int size) {
+    String after = cursor == null ? "" : " and (created_at,id) < (?,?)";
+    List<CursorRow> rows;
+    if (cursor == null) {
+      rows =
+          jdbc.query(
+              "select * from courses where status='PUBLISHED' order by created_at desc,id desc limit ?",
+              this::cursorRow,
+              size + 1);
+    } else {
+      rows =
+          jdbc.query(
+              "select * from courses where status='PUBLISHED'"
+                  + after
+                  + " order by created_at desc,id desc limit ?",
+              this::cursorRow,
+              Timestamp.from(cursor.createdAt()),
+              cursor.id(),
+              size + 1);
+    }
+    boolean hasNext = rows.size() > size;
+    List<CursorRow> page = hasNext ? rows.subList(0, size) : rows;
+    String next =
+        hasNext
+            ? new CourseCursor(page.getLast().createdAt(), page.getLast().course().id()).encode()
+            : null;
+    return new CursorPage<>(page.stream().map(CursorRow::course).toList(), next);
+  }
+
+  private CursorRow cursorRow(ResultSet result, int row) throws SQLException {
+    return new CursorRow(course(result, row), result.getTimestamp("created_at").toInstant());
   }
 
   private long count(String table) {
@@ -253,4 +305,6 @@ public class JdbcCatalogStore implements CatalogStore {
     }
     return values.getFirst();
   }
+
+  private record CursorRow(CourseView course, Instant createdAt) {}
 }

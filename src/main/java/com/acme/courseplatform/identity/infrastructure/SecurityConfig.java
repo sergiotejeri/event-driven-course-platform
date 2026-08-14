@@ -1,5 +1,6 @@
 package com.acme.courseplatform.identity.infrastructure;
 
+import com.acme.courseplatform.shared.api.ApiProblemWriter;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import java.nio.charset.StandardCharsets;
 import javax.crypto.SecretKey;
@@ -8,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -26,7 +28,8 @@ import org.springframework.security.web.SecurityFilterChain;
 public class SecurityConfig {
 
   @Bean
-  SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+  SecurityFilterChain securityFilterChain(HttpSecurity http, ApiProblemWriter problems)
+      throws Exception {
     return http.csrf(csrf -> csrf.disable())
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -59,7 +62,37 @@ public class SecurityConfig {
                     .hasAnyRole("ADMIN", "INSTRUCTOR")
                     .anyRequest()
                     .authenticated())
-        .oauth2ResourceServer(oauth -> oauth.jwt(Customizer.withDefaults()))
+        .exceptionHandling(
+            errors ->
+                errors
+                    .authenticationEntryPoint(
+                        (request, response, exception) ->
+                            problems.write(
+                                request,
+                                response,
+                                HttpStatus.UNAUTHORIZED,
+                                "AUTHENTICATION_REQUIRED",
+                                "Authentication is required to access this resource"))
+                    .accessDeniedHandler(
+                        (request, response, exception) ->
+                            problems.write(
+                                request,
+                                response,
+                                HttpStatus.FORBIDDEN,
+                                "ACCESS_DENIED",
+                                "The authenticated user cannot access this resource")))
+        .oauth2ResourceServer(
+            oauth ->
+                oauth
+                    .jwt(Customizer.withDefaults())
+                    .authenticationEntryPoint(
+                        (request, response, exception) ->
+                            problems.write(
+                                request,
+                                response,
+                                HttpStatus.UNAUTHORIZED,
+                                "AUTHENTICATION_REQUIRED",
+                                "Authentication is required to access this resource")))
         .build();
   }
 

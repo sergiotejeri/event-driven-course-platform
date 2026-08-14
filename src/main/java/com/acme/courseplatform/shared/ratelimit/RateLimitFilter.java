@@ -1,13 +1,15 @@
 package com.acme.courseplatform.shared.ratelimit;
 
+import com.acme.courseplatform.observability.BusinessMetrics;
+import com.acme.courseplatform.shared.api.ApiProblemWriter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -17,9 +19,14 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class RateLimitFilter extends OncePerRequestFilter {
 
   private final RedisTokenBucket limiter;
+  private final ApiProblemWriter problems;
+  private final BusinessMetrics metrics;
 
-  public RateLimitFilter(RedisTokenBucket limiter) {
+  public RateLimitFilter(
+      RedisTokenBucket limiter, ApiProblemWriter problems, BusinessMetrics metrics) {
     this.limiter = limiter;
+    this.problems = problems;
+    this.metrics = metrics;
   }
 
   @Override
@@ -41,30 +48,30 @@ public class RateLimitFilter extends OncePerRequestFilter {
       response.setHeader("X-RateLimit-Limit", Integer.toString(policy.capacity()));
       response.setHeader("X-RateLimit-Remaining", Long.toString(decision.remaining()));
       if (!decision.allowed()) {
-        response.setStatus(429);
         response.setHeader("Retry-After", Long.toString(Math.max(1, decision.retryAfterSeconds())));
-        writeProblem(response, "RATE_LIMIT_EXCEEDED", 429);
+        metrics.rateLimited();
+        problems.write(
+            request,
+            response,
+            HttpStatus.TOO_MANY_REQUESTS,
+            "RATE_LIMIT_EXCEEDED",
+            "The request rate limit has been exceeded");
         return;
       }
     } catch (RuntimeException redisUnavailable) {
+      metrics.rateLimitDegraded();
       if (policy.failClosed()) {
-        response.setStatus(503);
-        writeProblem(response, "RATE_LIMIT_UNAVAILABLE", 503);
+        problems.write(
+            request,
+            response,
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "RATE_LIMIT_UNAVAILABLE",
+            "Rate limiting is temporarily unavailable");
         return;
       }
       response.setHeader("X-RateLimit-Degraded", "fail-open");
     }
     chain.doFilter(request, response);
-  }
-
-  private static void writeProblem(HttpServletResponse response, String errorCode, int status)
-      throws IOException {
-    response.setContentType("application/problem+json");
-    response
-        .getOutputStream()
-        .write(
-            ("{\"errorCode\":\"" + errorCode + "\",\"status\":" + status + "}")
-                .getBytes(StandardCharsets.UTF_8));
   }
 
   private static Policy policy(HttpServletRequest request) {

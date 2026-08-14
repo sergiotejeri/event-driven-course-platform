@@ -1,5 +1,6 @@
 package com.acme.courseplatform.payment.application;
 
+import com.acme.courseplatform.messaging.application.EventContext;
 import com.acme.courseplatform.messaging.application.ProcessedEventService;
 import com.acme.courseplatform.observability.BusinessMetrics;
 import com.acme.courseplatform.payment.application.port.PaymentRepository;
@@ -33,6 +34,11 @@ public class ProcessPaymentSimulationUseCase {
 
   @Transactional
   public void process(UUID eventId, PaymentSimulationCommand command) {
+    process(eventId, command, EventContext.causedBy(UUID.randomUUID(), eventId));
+  }
+
+  @Transactional
+  public void process(UUID eventId, PaymentSimulationCommand command, EventContext context) {
     if (!processedEvents.claim(CONSUMER, eventId)) {
       return;
     }
@@ -48,7 +54,8 @@ public class ProcessPaymentSimulationUseCase {
         confirmed,
         payment.amount(),
         payment.currency(),
-        Instant.now())) {
+        Instant.now(),
+        context)) {
       metrics.paymentOutcome(confirmed);
     }
   }

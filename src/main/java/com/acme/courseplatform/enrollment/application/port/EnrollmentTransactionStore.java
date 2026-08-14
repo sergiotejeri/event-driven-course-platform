@@ -1,5 +1,6 @@
 package com.acme.courseplatform.enrollment.application.port;
 
+import com.acme.courseplatform.messaging.application.EventContext;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -16,7 +17,8 @@ public interface EnrollmentTransactionStore {
 
   ProgressUpdate updateProgress(UUID enrollmentId, int progress, Instant occurredAt);
 
-  void appendCompletedEvent(UUID eventId, UUID enrollmentId, UUID courseId, Instant completedAt);
+  void appendCompletedEvent(
+      UUID eventId, UUID enrollmentId, UUID courseId, Instant completedAt, EventContext context);
 
   record EnrollmentState(UUID courseId, String status, int progress) {}
 

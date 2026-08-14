@@ -72,6 +72,7 @@ class McpAuthorizationIntegrationTest {
             "get_category",
             "create_category",
             "update_category",
+            "archive_category",
             "delete_category",
             "list_instructors",
             "get_instructor",

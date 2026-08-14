@@ -9,18 +9,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.acme.courseplatform.CoursePlatformApplication;
+import com.acme.courseplatform.catalog.application.StudentService;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+import tools.jackson.databind.ObjectMapper;
 
 @Testcontainers
 @SpringBootTest(classes = CoursePlatformApplication.class)
@@ -31,6 +34,84 @@ class CatalogControllerTest {
   static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17.6-alpine");
 
   @Autowired MockMvc mvc;
+  @Autowired JdbcTemplate jdbc;
+  @Autowired ObjectMapper json;
+  @Autowired StudentService students;
+
+  @Test
+  void archivesCategoryThroughItsDomainTransition() throws Exception {
+    String body =
+        mvc.perform(
+                post("/api/v1/categories")
+                    .with(admin())
+                    .contentType("application/json")
+                    .content("{\"name\":\"Legacy\",\"description\":\"Legacy courses\"}"))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+    mvc.perform(post("/api/v1/categories/{id}/archive", value(body, "id")).with(admin()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("ARCHIVED"));
+  }
+
+  @Test
+  void provisionsUsableInstructorAndStudentAccounts() throws Exception {
+    String suffix = UUID.randomUUID().toString();
+    String instructorEmail = "instructor-" + suffix + "@example.test";
+    mvc.perform(
+            post("/api/v1/instructors")
+                .with(admin())
+                .contentType("application/json")
+                .content(
+                    ("{\"name\":\"Grace\",\"email\":\"%s\",\"biography\":\"Teacher\"}")
+                        .formatted(instructorEmail)))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.password").doesNotExist());
+    students.create("Alan", "Turing", "student-" + suffix + "@example.test");
+
+    assertLoginRole(instructorEmail, "INSTRUCTOR");
+    assertLoginRole("student-" + suffix + "@example.test", "STUDENT");
+  }
+
+  @Test
+  void cursorPaginationAdvancesWithoutReturningDraftCourses() throws Exception {
+    UUID categoryId = UUID.randomUUID();
+    UUID newest = UUID.randomUUID();
+    UUID oldest = UUID.randomUUID();
+    jdbc.update(
+        "insert into categories(id,name,description,status) values (?,?,?,'ACTIVE')",
+        categoryId,
+        "Cursor " + categoryId,
+        "Cursor pagination");
+    insertCursorCourse(oldest, categoryId, "PUBLISHED", "2099-01-01T10:00:00Z");
+    insertCursorCourse(newest, categoryId, "PUBLISHED", "2099-01-02T10:00:00Z");
+    insertCursorCourse(UUID.randomUUID(), categoryId, "DRAFT", "2099-01-03T10:00:00Z");
+
+    String firstBody =
+        mvc.perform(get("/api/v1/courses/search/cursor").param("size", "1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].id").value(newest.toString()))
+            .andExpect(jsonPath("$.nextCursor").isNotEmpty())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    String cursor = json.readTree(firstBody).required("nextCursor").asString();
+
+    mvc.perform(get("/api/v1/courses/search/cursor").param("size", "1").param("cursor", cursor))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content[0].id").value(oldest.toString()));
+  }
+
+  @Test
+  void rejectsInvalidCourseCursorAsProblemDetail() throws Exception {
+    mvc.perform(
+            get("/api/v1/courses/search/cursor").param("size", "1").param("cursor", "not-a-cursor"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.correlationId").isNotEmpty());
+  }
 
   @Test
   void managesCompleteCatalogAndSearchesWithCorrelation() throws Exception {
@@ -63,12 +144,10 @@ class CatalogControllerTest {
 
     mvc.perform(get("/api/v1/categories").param("page", "0").param("size", "10"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.content[0].id").value(categoryId))
-        .andExpect(jsonPath("$.totalElements").value(1));
+        .andExpect(jsonPath("$.content[?(@.id == '%s')]".formatted(categoryId)).isNotEmpty());
     mvc.perform(get("/api/v1/instructors").param("page", "0").param("size", "10"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.content[0].id").value(instructorId))
-        .andExpect(jsonPath("$.totalElements").value(2));
+        .andExpect(jsonPath("$.content[?(@.id == '%s')]".formatted(instructorId)).isNotEmpty());
 
     String course =
         mvc.perform(
@@ -122,7 +201,7 @@ class CatalogControllerTest {
         .andExpect(jsonPath("$.totalElements").value(1));
     mvc.perform(get("/api/v1/courses/search/cursor").param("size", "1"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.content[0].id").value(courseId));
+        .andExpect(jsonPath("$.content").isNotEmpty());
     mvc.perform(post("/api/v1/courses/{id}/archive", courseId).with(admin()))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("ARCHIVED"));
@@ -320,6 +399,35 @@ class CatalogControllerTest {
             .getResponse()
             .getContentAsString();
     return value(response, "id");
+  }
+
+  private void assertLoginRole(String email, String role) throws Exception {
+    mvc.perform(
+            post("/api/v1/auth/login")
+                .contentType("application/json")
+                .content(
+                    ("{\"email\":\"%s\",\"password\":\"test-provisioning-password\"}")
+                        .formatted(email)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.token").isNotEmpty());
+    Integer roles =
+        jdbc.queryForObject(
+            "select count(*) from user_roles r join users u on u.id=r.user_id where u.email=? and r.role_name=?",
+            Integer.class,
+            email,
+            role);
+    org.assertj.core.api.Assertions.assertThat(roles).isEqualTo(1);
+  }
+
+  private void insertCursorCourse(UUID id, UUID categoryId, String status, String createdAt) {
+    jdbc.update(
+        "insert into courses(id,title,description,estimated_hours,level,price,currency,capacity,occupied_seats,status,category_id,instructor_id,created_at) values (?,?,?,1,'BEGINNER',10,'EUR',2,0,?,?,'20000000-0000-0000-0000-000000000002',cast(? as timestamptz))",
+        id,
+        "Cursor " + id,
+        "Cursor pagination",
+        status,
+        categoryId,
+        createdAt);
   }
 
   private void createPublishedCourse(

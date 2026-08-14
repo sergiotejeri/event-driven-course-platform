@@ -1,5 +1,6 @@
 package com.acme.courseplatform.payment.application;
 
+import com.acme.courseplatform.messaging.application.EventContext;
 import com.acme.courseplatform.payment.application.ProcessPaymentSimulationUseCase.PaymentSimulationCommand;
 import com.acme.courseplatform.payment.application.port.PaymentRepository;
 import com.acme.courseplatform.shared.api.ResourceNotFoundException;
@@ -27,13 +28,15 @@ public class ProcessEnrollmentCreatedUseCase {
     this.outcome = outcome;
   }
 
-  public void process(UUID eventId, UUID enrollmentId) {
+  public void process(UUID eventId, UUID enrollmentId, EventContext context) {
     var payment =
         payments
             .findByEnrollmentId(enrollmentId)
             .orElseThrow(
                 () -> new ResourceNotFoundException("payment for enrollment", enrollmentId));
     processor.process(
-        eventId, new PaymentSimulationCommand(payment.id(), payment.enrollmentId(), outcome));
+        eventId,
+        new PaymentSimulationCommand(payment.id(), payment.enrollmentId(), outcome),
+        context);
   }
 }

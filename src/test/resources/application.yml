@@ -10,6 +10,9 @@ spring:
   rabbitmq:
     publisher-confirm-type: CORRELATED
     publisher-returns: true
+    listener:
+      simple:
+        auto-startup: false
 
 management:
   otlp:
@@ -40,3 +43,4 @@ app:
   security:
     jwt-secret: course-platform-development-secret-change-me
     token-ttl: 1h
+    provisioning-password: test-provisioning-password

@@ -1,9 +1,12 @@
 package com.acme.courseplatform.catalog.application.port;
 
 import com.acme.courseplatform.catalog.application.model.CategoryView;
+import com.acme.courseplatform.catalog.application.model.CourseCursor;
 import com.acme.courseplatform.catalog.application.model.CourseView;
+import com.acme.courseplatform.catalog.application.model.CursorPage;
 import com.acme.courseplatform.catalog.application.model.InstructorView;
 import com.acme.courseplatform.catalog.application.model.PageResult;
+import com.acme.courseplatform.catalog.domain.CategoryStatus;
 import com.acme.courseplatform.shared.query.SortSpec;
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -15,6 +18,8 @@ public interface CatalogStore {
   CategoryView getCategory(UUID id);
 
   CategoryView updateCategory(UUID id, String name, String description);
+
+  CategoryView changeCategoryStatus(UUID id, CategoryStatus status);
 
   void deleteCategory(UUID id);
 
@@ -41,5 +46,5 @@ public interface CatalogStore {
       int size,
       SortSpec sort);
 
-  PageResult<CourseView> cursorCourses(int size);
+  CursorPage<CourseView> cursorCourses(CourseCursor cursor, int size);
 }

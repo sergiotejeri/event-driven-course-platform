@@ -3,6 +3,8 @@ package com.acme.courseplatform.enrollment.application;
 import com.acme.courseplatform.enrollment.application.port.EnrollmentTransactionStore;
 import com.acme.courseplatform.identity.application.AuthorizationService;
 import com.acme.courseplatform.identity.application.CurrentActor;
+import com.acme.courseplatform.messaging.application.EventContext;
+import com.acme.courseplatform.shared.application.CorrelationContext;
 import com.acme.courseplatform.shared.domain.InvalidTransitionException;
 import com.acme.courseplatform.shared.domain.ProgressRegressionException;
 import java.time.Instant;
@@ -15,11 +17,15 @@ public class UpdateProgressUseCase {
 
   private final EnrollmentTransactionStore enrollments;
   private final AuthorizationService authorization;
+  private final CorrelationContext correlation;
 
   public UpdateProgressUseCase(
-      EnrollmentTransactionStore enrollments, AuthorizationService authorization) {
+      EnrollmentTransactionStore enrollments,
+      AuthorizationService authorization,
+      CorrelationContext correlation) {
     this.enrollments = enrollments;
     this.authorization = authorization;
+    this.correlation = correlation;
   }
 
   @Transactional
@@ -36,7 +42,12 @@ public class UpdateProgressUseCase {
     var result = enrollments.updateProgress(enrollmentId, progress, now);
     return switch (result) {
       case COMPLETED -> {
-        enrollments.appendCompletedEvent(UUID.randomUUID(), enrollmentId, state.courseId(), now);
+        enrollments.appendCompletedEvent(
+            UUID.randomUUID(),
+            enrollmentId,
+            state.courseId(),
+            now,
+            new EventContext(correlation.currentId(), null));
         yield new ProgressResult(enrollmentId, 100, "COMPLETED", true);
       }
       case STALE -> throw new ProgressRegressionException("Enrollment progress cannot decrease");

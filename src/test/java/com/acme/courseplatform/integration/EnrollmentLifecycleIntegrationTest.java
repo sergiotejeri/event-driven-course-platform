@@ -188,6 +188,29 @@ class EnrollmentLifecycleIntegrationTest {
   }
 
   @Test
+  void ownerCanCancelActiveEnrollmentWithoutChangingConfirmedPayment() throws Exception {
+    UUID enrollmentId = createEnrollment("ACTIVE", 25);
+    UUID paymentId = createConfirmedPayment(enrollmentId);
+
+    mvc.perform(
+            delete("/api/v1/enrollments/{id}", enrollmentId)
+                .with(studentJwt(studentActor().userId())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("CANCELLED"))
+        .andExpect(jsonPath("$.replayed").value(false));
+
+    mvc.perform(
+            delete("/api/v1/enrollments/{id}", enrollmentId)
+                .with(studentJwt(studentActor().userId())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.replayed").value(true));
+
+    assertThat(enrollmentStatus(enrollmentId)).isEqualTo("CANCELLED");
+    assertThat(paymentStatus(paymentId)).isEqualTo("CONFIRMED");
+    assertThat(occupiedSeats()).isZero();
+  }
+
+  @Test
   void staleProgressReturnsConflictProblemDetail() throws Exception {
     UUID enrollmentId = createEnrollment("ACTIVE", 70);
 
@@ -249,6 +272,16 @@ class EnrollmentLifecycleIntegrationTest {
     UUID paymentId = UUID.randomUUID();
     jdbc.update(
         "insert into payments(id,enrollment_id,amount,currency,status,idempotency_key) values (?,?,40.00,'EUR','PENDING',?)",
+        paymentId,
+        enrollmentId,
+        "lifecycle-" + paymentId);
+    return paymentId;
+  }
+
+  private UUID createConfirmedPayment(UUID enrollmentId) {
+    UUID paymentId = UUID.randomUUID();
+    jdbc.update(
+        "insert into payments(id,enrollment_id,amount,currency,status,idempotency_key,confirmed_at) values (?,?,40.00,'EUR','CONFIRMED',?,now())",
         paymentId,
         enrollmentId,
         "lifecycle-" + paymentId);

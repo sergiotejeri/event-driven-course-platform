@@ -38,7 +38,9 @@ class SecurityIntegrationTest {
             post("/api/v1/categories")
                 .contentType("application/json")
                 .content("{\"name\":\"Security\",\"description\":\"Role matrix\"}"))
-        .andExpect(status().isUnauthorized());
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.errorCode").value("AUTHENTICATION_REQUIRED"))
+        .andExpect(jsonPath("$.correlationId").isNotEmpty());
 
     String student = login("student@example.test", "password");
     mvc.perform(
@@ -46,7 +48,9 @@ class SecurityIntegrationTest {
                 .header("Authorization", "Bearer " + student)
                 .contentType("application/json")
                 .content("{\"name\":\"Security\",\"description\":\"Role matrix\"}"))
-        .andExpect(status().isForbidden());
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.errorCode").value("ACCESS_DENIED"))
+        .andExpect(jsonPath("$.correlationId").isNotEmpty());
 
     String admin = login("admin@example.test", "password");
     mvc.perform(

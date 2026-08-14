@@ -52,6 +52,7 @@ class CertificateMessagingIntegrationTest {
     registry.add("spring.rabbitmq.port", RABBIT::getAmqpPort);
     registry.add("spring.rabbitmq.username", RABBIT::getAdminUsername);
     registry.add("spring.rabbitmq.password", RABBIT::getAdminPassword);
+    registry.add("spring.rabbitmq.listener.simple.auto-startup", () -> "true");
   }
 
   @Autowired JdbcTemplate jdbc;

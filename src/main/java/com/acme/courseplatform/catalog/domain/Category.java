@@ -20,6 +20,10 @@ public class Category {
     return new Category(id, name, description, CategoryStatus.ACTIVE);
   }
 
+  public static Category restore(UUID id, String name, String description, CategoryStatus status) {
+    return new Category(id, name, description, status);
+  }
+
   public boolean archive() {
     if (status == CategoryStatus.ARCHIVED) {
       return false;

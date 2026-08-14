@@ -161,6 +161,12 @@ public class CatalogMcpTools {
     return categories.update(id, name, description);
   }
 
+  @McpTool(name = "archive_category", description = "Archive a category as administrator")
+  public CategoryView archiveCategory(UUID id) {
+    authorization.requireAdmin(actor.current());
+    return categories.archive(id);
+  }
+
   @McpTool(name = "delete_category", description = "Delete a category as administrator")
   public void deleteCategory(UUID id) {
     authorization.requireAdmin(actor.current());

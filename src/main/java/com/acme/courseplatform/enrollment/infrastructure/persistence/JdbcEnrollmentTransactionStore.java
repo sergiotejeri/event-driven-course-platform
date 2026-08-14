@@ -1,6 +1,7 @@
 package com.acme.courseplatform.enrollment.infrastructure.persistence;
 
 import com.acme.courseplatform.enrollment.application.port.EnrollmentTransactionStore;
+import com.acme.courseplatform.messaging.application.EventContext;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Optional;
@@ -37,7 +38,7 @@ public class JdbcEnrollmentTransactionStore implements EnrollmentTransactionStor
   public CancellationResult cancelWithPendingPayment(UUID enrollmentId, Instant cancelledAt) {
     CancellationSnapshot state =
         jdbc.query(
-            "select p.status as payment_status,e.status as enrollment_status from payments p join enrollments e on e.id=p.enrollment_id where e.id=? for update of p",
+            "select p.status as payment_status,e.status as enrollment_status from payments p join enrollments e on e.id=p.enrollment_id where e.id=? for update of p,e",
             result ->
                 result.next()
                     ? new CancellationSnapshot(
@@ -50,20 +51,15 @@ public class JdbcEnrollmentTransactionStore implements EnrollmentTransactionStor
     if (state.enrollmentStatus().equals("CANCELLED")) {
       return CancellationResult.ALREADY_CANCELLED;
     }
-    if (!state.paymentStatus().equals("PENDING")) {
-      return CancellationResult.PAYMENT_TERMINAL;
-    }
     if (!state.enrollmentStatus().equals("PENDING_PAYMENT")
         && !state.enrollmentStatus().equals("ACTIVE")) {
       return CancellationResult.INVALID_STATE;
     }
-    int paymentUpdated =
-        jdbc.update(
-            "update payments set status='FAILED',failed_at=?,updated_at=? where enrollment_id=? and status='PENDING'",
-            Timestamp.from(cancelledAt),
-            Timestamp.from(cancelledAt),
-            enrollmentId);
-    if (paymentUpdated != 1) {
+    if (state.enrollmentStatus().equals("PENDING_PAYMENT")
+        && !failPendingPayment(enrollmentId, cancelledAt)) {
+      return CancellationResult.PAYMENT_TERMINAL;
+    }
+    if (state.enrollmentStatus().equals("ACTIVE") && !state.paymentStatus().equals("CONFIRMED")) {
       return CancellationResult.PAYMENT_TERMINAL;
     }
     int enrollmentUpdated =
@@ -77,6 +73,15 @@ public class JdbcEnrollmentTransactionStore implements EnrollmentTransactionStor
       throw new IllegalStateException("Enrollment cancellation lost after locking payment");
     }
     return CancellationResult.CANCELLED;
+  }
+
+  private boolean failPendingPayment(UUID enrollmentId, Instant cancelledAt) {
+    return jdbc.update(
+            "update payments set status='FAILED',failed_at=?,updated_at=? where enrollment_id=? and status='PENDING'",
+            Timestamp.from(cancelledAt),
+            Timestamp.from(cancelledAt),
+            enrollmentId)
+        == 1;
   }
 
   @Override
@@ -125,7 +130,7 @@ public class JdbcEnrollmentTransactionStore implements EnrollmentTransactionStor
 
   @Override
   public void appendCompletedEvent(
-      UUID eventId, UUID enrollmentId, UUID courseId, Instant completedAt) {
+      UUID eventId, UUID enrollmentId, UUID courseId, Instant completedAt, EventContext context) {
     String payload =
         "{\"enrollmentId\":\""
             + enrollmentId
@@ -135,11 +140,12 @@ public class JdbcEnrollmentTransactionStore implements EnrollmentTransactionStor
             + completedAt
             + "\"}";
     jdbc.update(
-        "insert into outbox_events(event_id,event_type,event_version,aggregate_type,aggregate_id,payload,correlation_id,occurred_at) values (?,'EnrollmentCompletedV1',1,'Enrollment',?,cast(? as jsonb),?,?)",
+        "insert into outbox_events(event_id,event_type,event_version,aggregate_type,aggregate_id,payload,correlation_id,causation_id,occurred_at) values (?,'EnrollmentCompletedV1',1,'Enrollment',?,cast(? as jsonb),?,?,?)",
         eventId,
         enrollmentId,
         payload,
-        UUID.randomUUID(),
+        context.correlationId(),
+        context.causationId(),
         Timestamp.from(completedAt));
   }
 

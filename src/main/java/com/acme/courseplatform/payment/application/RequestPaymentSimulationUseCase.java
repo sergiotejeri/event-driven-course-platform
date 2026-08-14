@@ -2,11 +2,13 @@ package com.acme.courseplatform.payment.application;
 
 import com.acme.courseplatform.identity.application.AuthorizationService;
 import com.acme.courseplatform.identity.application.CurrentActor;
+import com.acme.courseplatform.messaging.application.EventContext;
 import com.acme.courseplatform.payment.application.port.PaymentRepository;
 import com.acme.courseplatform.payment.application.port.PaymentTransactionStore;
 import com.acme.courseplatform.payment.domain.PaymentStatus;
 import com.acme.courseplatform.shared.api.ConflictException;
 import com.acme.courseplatform.shared.api.ResourceNotFoundException;
+import com.acme.courseplatform.shared.application.CorrelationContext;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Set;
@@ -22,14 +24,17 @@ public class RequestPaymentSimulationUseCase {
   private final PaymentRepository payments;
   private final PaymentTransactionStore transactions;
   private final AuthorizationService authorization;
+  private final CorrelationContext correlation;
 
   public RequestPaymentSimulationUseCase(
       PaymentRepository payments,
       PaymentTransactionStore transactions,
-      AuthorizationService authorization) {
+      AuthorizationService authorization,
+      CorrelationContext correlation) {
     this.payments = payments;
     this.transactions = transactions;
     this.authorization = authorization;
+    this.correlation = correlation;
   }
 
   @Transactional
@@ -48,7 +53,12 @@ public class RequestPaymentSimulationUseCase {
     }
     UUID eventId = UUID.randomUUID();
     transactions.appendSimulationRequested(
-        eventId, payment.id(), payment.enrollmentId(), outcome, Instant.now());
+        eventId,
+        payment.id(),
+        payment.enrollmentId(),
+        outcome,
+        Instant.now(),
+        new EventContext(correlation.currentId(), null));
     return eventId;
   }
 }

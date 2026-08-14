@@ -60,6 +60,7 @@ class PaymentMessagingIntegrationTest {
     registry.add("spring.rabbitmq.port", RABBIT::getAmqpPort);
     registry.add("spring.rabbitmq.username", RABBIT::getAdminUsername);
     registry.add("spring.rabbitmq.password", RABBIT::getAdminPassword);
+    registry.add("spring.rabbitmq.listener.simple.auto-startup", () -> "true");
   }
 
   @Autowired JdbcTemplate jdbc;
@@ -86,9 +87,19 @@ class PaymentMessagingIntegrationTest {
   void enrollmentCreatedConfirmsPaymentAndActivatesEnrollment() throws Exception {
     UUID courseId = createPublishedCourse();
     var enrolled = enrollment.enroll(studentActor(), courseId, "automatic-payment-" + courseId);
+    var createdEvent =
+        jdbc.queryForMap(
+            "select event_id,correlation_id from outbox_events where aggregate_id=? and event_type='EnrollmentCreatedV1'",
+            enrolled.enrollmentId());
 
     assertThat(publisher.publishBatch(10)).isEqualTo(1);
     await(() -> "CONFIRMED".equals(recordStatus("payments", enrolled.paymentId())));
+    var confirmedEvent =
+        jdbc.queryForMap(
+            "select correlation_id,causation_id from outbox_events where aggregate_id=? and event_type='PaymentConfirmedV1'",
+            enrolled.paymentId());
+    assertThat(confirmedEvent.get("correlation_id")).isEqualTo(createdEvent.get("correlation_id"));
+    assertThat(confirmedEvent.get("causation_id")).isEqualTo(createdEvent.get("event_id"));
     assertThat(publisher.publishBatch(10)).isEqualTo(1);
     await(() -> "ACTIVE".equals(recordStatus("enrollments", enrolled.enrollmentId())));
   }

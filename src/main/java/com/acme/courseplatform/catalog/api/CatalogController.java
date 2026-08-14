@@ -7,6 +7,7 @@ import com.acme.courseplatform.catalog.application.InstructorService;
 import com.acme.courseplatform.catalog.application.model.CategoryView;
 import com.acme.courseplatform.catalog.application.model.CourseData;
 import com.acme.courseplatform.catalog.application.model.CourseView;
+import com.acme.courseplatform.catalog.application.model.CursorPage;
 import com.acme.courseplatform.catalog.application.model.InstructorView;
 import com.acme.courseplatform.catalog.application.model.PageResult;
 import com.acme.courseplatform.catalog.infrastructure.cache.CatalogCache;
@@ -86,6 +87,11 @@ public class CatalogController {
       security = @SecurityRequirement(name = "bearerAuth"))
   CategoryView updateCategory(@PathVariable UUID id, @Valid @RequestBody CategoryRequest request) {
     return categories.update(id, request.name(), request.description());
+  }
+
+  @PostMapping("/categories/{id}/archive")
+  CategoryView archiveCategory(@PathVariable UUID id) {
+    return categories.archive(id);
   }
 
   @DeleteMapping("/categories/{id}")
@@ -226,8 +232,10 @@ public class CatalogController {
   }
 
   @GetMapping("/courses/search/cursor")
-  PageResult<CourseView> cursorCourses(@RequestParam(defaultValue = "20") @Positive int size) {
-    return cache.search("cursor:" + size, () -> search.cursor(size));
+  CursorPage<CourseView> cursorCourses(
+      @RequestParam(required = false) String cursor,
+      @RequestParam(defaultValue = "20") @Positive int size) {
+    return search.cursor(cursor, size);
   }
 
   private static String value(Object value) {

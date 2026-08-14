@@ -3,6 +3,8 @@ package com.acme.courseplatform.catalog.application;
 import com.acme.courseplatform.catalog.application.model.CategoryView;
 import com.acme.courseplatform.catalog.application.model.PageResult;
 import com.acme.courseplatform.catalog.application.port.CatalogStore;
+import com.acme.courseplatform.catalog.domain.Category;
+import com.acme.courseplatform.catalog.domain.CategoryStatus;
 import com.acme.courseplatform.shared.query.SortDirection;
 import com.acme.courseplatform.shared.query.SortSpec;
 import java.util.Map;
@@ -34,6 +36,21 @@ public class CategoryService {
   @Transactional
   public CategoryView update(UUID id, String name, String description) {
     return store.updateCategory(id, name, description);
+  }
+
+  @Transactional
+  public CategoryView archive(UUID id) {
+    CategoryView current = store.getCategory(id);
+    Category category =
+        Category.restore(
+            current.id(),
+            current.name(),
+            current.description(),
+            CategoryStatus.valueOf(current.status()));
+    if (category.archive()) {
+      return store.changeCategoryStatus(id, category.status());
+    }
+    return current;
   }
 
   @Transactional

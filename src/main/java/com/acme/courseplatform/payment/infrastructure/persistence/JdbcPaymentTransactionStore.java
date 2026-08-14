@@ -1,5 +1,6 @@
 package com.acme.courseplatform.payment.infrastructure.persistence;
 
+import com.acme.courseplatform.messaging.application.EventContext;
 import com.acme.courseplatform.payment.application.port.PaymentTransactionStore;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
@@ -25,7 +26,8 @@ public class JdbcPaymentTransactionStore implements PaymentTransactionStore {
       boolean confirmed,
       BigDecimal amount,
       String currency,
-      Instant occurredAt) {
+      Instant occurredAt,
+      EventContext context) {
     String status = confirmed ? "CONFIRMED" : "FAILED";
     String timestamp = confirmed ? "confirmed_at" : "failed_at";
     int updated =
@@ -64,15 +66,20 @@ public class JdbcPaymentTransactionStore implements PaymentTransactionStore {
         eventType,
         paymentId,
         payload,
-        UUID.randomUUID(),
-        eventId,
+        context.correlationId(),
+        context.causationId(),
         Timestamp.from(occurredAt));
     return true;
   }
 
   @Override
   public void appendSimulationRequested(
-      UUID eventId, UUID paymentId, UUID enrollmentId, String outcome, Instant occurredAt) {
+      UUID eventId,
+      UUID paymentId,
+      UUID enrollmentId,
+      String outcome,
+      Instant occurredAt,
+      EventContext context) {
     String payload =
         "{\"paymentId\":\""
             + paymentId
@@ -86,7 +93,7 @@ public class JdbcPaymentTransactionStore implements PaymentTransactionStore {
         eventId,
         paymentId,
         payload,
-        UUID.randomUUID(),
+        context.correlationId(),
         Timestamp.from(occurredAt));
   }
 }

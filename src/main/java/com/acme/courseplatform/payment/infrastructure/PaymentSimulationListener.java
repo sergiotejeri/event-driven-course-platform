@@ -1,5 +1,6 @@
 package com.acme.courseplatform.payment.infrastructure;
 
+import com.acme.courseplatform.messaging.application.EventContext;
 import com.acme.courseplatform.messaging.infrastructure.RabbitTopologyConfig;
 import com.acme.courseplatform.payment.application.ProcessPaymentSimulationUseCase;
 import com.acme.courseplatform.payment.application.ProcessPaymentSimulationUseCase.PaymentSimulationCommand;
@@ -28,11 +29,20 @@ public class PaymentSimulationListener {
       throw new IllegalArgumentException("messageId is required");
     }
     var body = json.readTree(new String(message.getBody(), StandardCharsets.UTF_8));
+    UUID eventId = UUID.fromString(messageId);
     payments.process(
-        UUID.fromString(messageId),
+        eventId,
         new PaymentSimulationCommand(
             UUID.fromString(body.required("paymentId").asString()),
             UUID.fromString(body.required("enrollmentId").asString()),
-            body.required("outcome").asString()));
+            body.required("outcome").asString()),
+        EventContext.causedBy(correlationId(message), eventId));
+  }
+
+  private UUID correlationId(Message message) {
+    String value = message.getMessageProperties().getCorrelationId();
+    return value == null
+        ? UUID.fromString(message.getMessageProperties().getMessageId())
+        : UUID.fromString(value);
   }
 }

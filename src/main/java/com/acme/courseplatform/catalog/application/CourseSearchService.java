@@ -1,6 +1,8 @@
 package com.acme.courseplatform.catalog.application;
 
+import com.acme.courseplatform.catalog.application.model.CourseCursor;
 import com.acme.courseplatform.catalog.application.model.CourseView;
+import com.acme.courseplatform.catalog.application.model.CursorPage;
 import com.acme.courseplatform.catalog.application.model.PageResult;
 import com.acme.courseplatform.catalog.application.port.CatalogStore;
 import com.acme.courseplatform.shared.query.SortDirection;
@@ -47,7 +49,10 @@ public class CourseSearchService {
   }
 
   @Transactional(readOnly = true)
-  public PageResult<CourseView> cursor(int size) {
-    return store.cursorCourses(size);
+  public CursorPage<CourseView> cursor(String cursor, int size) {
+    if (size < 1 || size > 100) {
+      throw new IllegalArgumentException("Invalid page size");
+    }
+    return store.cursorCourses(CourseCursor.decode(cursor), size);
   }
 }

@@ -6,16 +6,25 @@ import com.acme.courseplatform.catalog.application.port.StudentCatalogStore;
 import com.acme.courseplatform.shared.api.ResourceNotFoundException;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class JdbcStudentCatalogStore implements StudentCatalogStore {
 
   private final JdbcTemplate jdbc;
+  private final PasswordEncoder passwordEncoder;
+  private final String provisioningPassword;
 
-  public JdbcStudentCatalogStore(JdbcTemplate jdbc) {
+  public JdbcStudentCatalogStore(
+      JdbcTemplate jdbc,
+      PasswordEncoder passwordEncoder,
+      @Value("${app.security.provisioning-password}") String provisioningPassword) {
     this.jdbc = jdbc;
+    this.passwordEncoder = passwordEncoder;
+    this.provisioningPassword = provisioningPassword;
   }
 
   @Override
@@ -61,7 +70,7 @@ public class JdbcStudentCatalogStore implements StudentCatalogStore {
         "insert into users(id, email, password_hash, enabled) values (?, ?, ?, true)",
         userId,
         email,
-        "mcp-pending-account");
+        passwordEncoder.encode(provisioningPassword));
     jdbc.update("insert into user_roles(user_id, role_name) values (?, 'STUDENT')", userId);
     jdbc.update(
         "insert into students(id, user_id, first_name, last_name, email) values (?, ?, ?, ?, ?)",
