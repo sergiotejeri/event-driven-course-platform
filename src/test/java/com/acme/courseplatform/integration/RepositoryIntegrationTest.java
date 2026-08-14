@@ -8,11 +8,18 @@ import com.acme.courseplatform.shared.query.SortDirection;
 import com.acme.courseplatform.shared.query.SortSpec;
 import java.util.Map;
 import java.util.UUID;
+import javax.sql.DataSource;
+import net.ttddyy.dsproxy.QueryCountHolder;
+import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -22,6 +29,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @SpringBootTest(
     classes = CoursePlatformApplication.class,
     properties = "spring.rabbitmq.listener.simple.auto-startup=false")
+@Import(RepositoryIntegrationTest.QueryCountingConfiguration.class)
 class RepositoryIntegrationTest {
 
   @Container @ServiceConnection
@@ -64,7 +72,7 @@ class RepositoryIntegrationTest {
   }
 
   @Test
-  void relationalListingsArePagedWithStableOrderingAndExactTotals() {
+  void relationalListingsUseTwoQueriesRegardlessOfResultSize() {
     SortSpec studentsSort =
         SortSpec.parse(
             "firstName,asc",
@@ -72,8 +80,10 @@ class RepositoryIntegrationTest {
             "firstName",
             SortDirection.ASC,
             "s.id");
+    QueryCountHolder.clear();
     var students = queries.findStudentsByCourse(courseId, 0, 2, studentsSort);
 
+    assertThat(QueryCountHolder.getGrandTotal().getSelect()).isEqualTo(2);
     assertThat(students.content()).hasSize(2);
     assertThat(students.totalElements()).isEqualTo(3);
     assertThat(students.content()).extracting(student -> student.firstName()).containsOnly("Ana");
@@ -85,8 +95,10 @@ class RepositoryIntegrationTest {
 
     SortSpec coursesSort =
         SortSpec.parse("title,asc", Map.of("title", "c.title"), "title", SortDirection.ASC, "c.id");
+    QueryCountHolder.clear();
     var courses = queries.findCoursesByStudent(studentId, 0, 1, coursesSort);
 
+    assertThat(QueryCountHolder.getGrandTotal().getSelect()).isEqualTo(2);
     assertThat(courses.content()).hasSize(1);
     assertThat(courses.totalElements()).isEqualTo(1);
     assertThat(courses.content().getFirst().courseId()).isEqualTo(courseId);
@@ -117,5 +129,22 @@ class RepositoryIntegrationTest {
         UUID.randomUUID(),
         id,
         courseId);
+  }
+
+  @TestConfiguration
+  static class QueryCountingConfiguration {
+
+    @Bean
+    static BeanPostProcessor queryCountingDataSource() {
+      return new BeanPostProcessor() {
+        @Override
+        public Object postProcessAfterInitialization(Object bean, String beanName) {
+          if (bean instanceof DataSource dataSource) {
+            return ProxyDataSourceBuilder.create(dataSource).countQuery().build();
+          }
+          return bean;
+        }
+      };
+    }
   }
 }
